@@ -5,6 +5,7 @@ import * as os from "os";
 
 export const COMPILE_TIMEOUT_MS = 10000;
 export const RUN_TIMEOUT_MS = 5000;
+export const INPUT_PROBE_TIMEOUT_MS = 4000;
 export const MAX_OUTPUT_LENGTH = 1024 * 1024;
 
 export interface TestCaseResult {
@@ -80,7 +81,13 @@ export async function compile(sourceFile: string, executablePath: string): Promi
   });
 }
 
-export async function runWithInput(executablePath: string, cwd: string, input: string): Promise<string> {
+export async function runWithInput(
+  executablePath: string,
+  cwd: string,
+  input: string,
+  timeoutMs: number = RUN_TIMEOUT_MS,
+  keepStdinOpen: boolean = false
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(executablePath, [], {
       stdio: ["pipe", "pipe", "pipe"],
@@ -96,9 +103,11 @@ export async function runWithInput(executablePath: string, cwd: string, input: s
         try {
           child.kill("SIGKILL");
         } catch {}
-        reject(new Error("Execution timeout"));
+        const err = new Error("Execution timeout") as Error & { partialOutput?: string };
+        err.partialOutput = stdout;
+        reject(err);
       }
-    }, RUN_TIMEOUT_MS);
+    }, timeoutMs);
 
     child.stdout?.setEncoding("utf8");
     child.stderr?.setEncoding("utf8");
@@ -145,10 +154,12 @@ export async function runWithInput(executablePath: string, cwd: string, input: s
     });
 
     try {
-      if (input.length > 0) {
+      if (!keepStdinOpen && input.length > 0) {
         child.stdin?.write(input);
       }
-      child.stdin?.end();
+      if (!keepStdinOpen) {
+        child.stdin?.end();
+      }
     } catch (err) {
       if (!done) {
         done = true;

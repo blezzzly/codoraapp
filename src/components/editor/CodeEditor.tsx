@@ -43,7 +43,8 @@ export function Editor({
   language = "cpp",
 }: EditorProps) {
   const [output, setOutput] = useState<string>("> Ready to run...");
-  const [stdInput, setStdInput] = useState<string>("");
+  const [waitingForInput, setWaitingForInput] = useState<boolean>(false);
+  const [consoleInput, setConsoleInput] = useState<string>("");
   const [explanation, setExplanation] = useState<{ hint: string; why: string; tryChecking: string; line?: number } | null>(null);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isChecking, setIsChecking] = useState<boolean>(false);
@@ -52,6 +53,8 @@ export function Editor({
   const editorDivRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<any>(null);
   const onCodeChangeRef = useRef(onCodeChange);
+  const waitingRef = useRef("");
+  const consoleInputRef = useRef<HTMLInputElement>(null);
   const { show } = useToast();
 
   useEffect(() => {
@@ -145,6 +148,8 @@ export function Editor({
       return;
     }
 
+    setWaitingForInput(false);
+    setConsoleInput("");
     setIsRunning(true);
     setOutput("Compiling...\n");
 
@@ -152,10 +157,21 @@ export function Editor({
       const response = await fetch("/api/run-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, input: stdInput }),
+        body: JSON.stringify({ code, language }),
       });
 
       const result = await response.json();
+
+      if (result.waitingForInput) {
+        const partial = typeof result.output === "string" ? result.output : "";
+        waitingRef.current = partial.endsWith("\n") ? partial : `${partial}\n`;
+        setOutput(waitingRef.current || "Program is waiting for input.\n");
+        setWaitingForInput(true);
+        setTimeout(() => consoleInputRef.current?.focus(), 50);
+        setIsRunning(false);
+        return;
+      }
+
       setOutput(result.output || "(no output)");
       setExplanation(result.explanation || null);
       onRun();
@@ -165,7 +181,42 @@ export function Editor({
     } finally {
       setIsRunning(false);
     }
-  }, [initialCode, language, onRun, stdInput]);
+  }, [initialCode, language, onRun]);
+
+  const submitConsoleInput = useCallback(async () => {
+    const code = editorRef.current?.getValue?.() || initialCode;
+    const value = consoleInput.trim();
+    setWaitingForInput(false);
+    setConsoleInput("");
+    setIsRunning(true);
+    setOutput(`${waitingRef.current}${value ? `> ${value}\n` : ""}Running...\n`);
+
+    try {
+      const response = await fetch("/api/run-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, language, input: value }),
+      });
+
+      const result = await response.json();
+      if (result.waitingForInput) {
+        const partial = typeof result.output === "string" ? result.output : "";
+        waitingRef.current = partial.endsWith("\n") ? partial : `${partial}\n`;
+        setOutput(waitingRef.current);
+        setWaitingForInput(true);
+        setTimeout(() => consoleInputRef.current?.focus(), 50);
+        return;
+      }
+      setOutput(result.output || "(no output)");
+      setExplanation(result.explanation || null);
+      onRun();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setOutput(`Error: ${message || "Failed to run program"}`);
+    } finally {
+      setIsRunning(false);
+    }
+  }, [initialCode, language, onRun, consoleInput]);
 
   const handleCheck = useCallback(async () => {
     if (!testCases || testCases.length === 0) {
@@ -278,21 +329,7 @@ export function Editor({
 
       <div ref={editorDivRef} className="h-[280px] sm:h-[350px] w-full" />
 
-      <div className="bg-[#181825] border-t border-[#313244] px-4 py-2">
-        <div className="flex items-center gap-2 mb-1">
-          <TerminalIcon className="w-3 h-3 text-gray-500" />
-          <span className="text-gray-500 uppercase tracking-wider text-[10px]">Standard Input</span>
-        </div>
-        <textarea
-          value={stdInput}
-          onChange={(e) => setStdInput(e.target.value)}
-          placeholder="Type the input your program reads here (used by cin)..."
-          rows={2}
-          className="w-full bg-[#11111b] text-gray-300 font-mono text-xs rounded-lg p-2 border border-[#313244] focus:outline-none focus:border-gray-500 resize-y"
-        />
-      </div>
-
-      <div className="bg-[#181825] text-gray-300 px-4 py-3 font-mono text-xs min-h-[100px] max-h-[140px] overflow-auto border-t border-[#313244]">
+      <div className="bg-[#181825] text-gray-300 px-4 py-3 font-mono text-xs min-h-[100px] max-h-[160px] overflow-auto border-t border-[#313244]">
         <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#313244]">
           <TerminalIcon className="w-3 h-3 text-gray-500" />
           <span className="text-gray-500 uppercase tracking-wider text-[10px]">Output</span>
@@ -300,6 +337,12 @@ export function Editor({
             <div className="ml-auto flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-emerald-500 text-[10px]">Running...</span>
+            </div>
+          )}
+          {waitingForInput && !isRunning && (
+            <div className="ml-auto flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-amber-400 text-[10px]">Waiting for input</span>
             </div>
           )}
         </div>
@@ -314,6 +357,31 @@ export function Editor({
           </div>
         )}
         <pre className="whitespace-pre-wrap">{output}</pre>
+        {waitingForInput && !isRunning && (
+          <div className="mt-2 pt-2 border-t border-[#313244] flex items-center gap-2">
+            <span className="text-emerald-400 font-bold">{'>'}</span>
+            <input
+              ref={consoleInputRef}
+              value={consoleInput}
+              onChange={(e) => setConsoleInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  submitConsoleInput();
+                }
+              }}
+              placeholder="Type your input here, then Enter..."
+              className="flex-1 bg-[#11111b] text-gray-200 font-mono text-xs rounded-lg px-2 py-1.5 border border-[#313244] focus:outline-none focus:border-emerald-500"
+            />
+            <button
+              onClick={submitConsoleInput}
+              disabled={isRunning || isChecking}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
+            >
+              Send
+            </button>
+          </div>
+        )}
         {testResults.length > 0 && (
           <div className="mt-2 pt-2 border-t border-[#313244]">
             <p className="text-gray-500 mb-1 text-[10px] uppercase tracking-wider">Tests</p>

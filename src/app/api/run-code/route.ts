@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeSource, compile, runWithInput, cleanupDir } from "@/lib/codeExecutor";
+import { writeSource, compile, runWithInput, cleanupDir, RUN_TIMEOUT_MS, INPUT_PROBE_TIMEOUT_MS } from "@/lib/codeExecutor";
 import { validateCode, sanitizeError } from "@/lib/codeValidation";
 import { explainCompileError } from "@/lib/explainError";
 
@@ -10,6 +10,9 @@ interface RunCodeRequest {
 }
 
 const MAX_INPUT_LENGTH = 10000;
+
+const READS_INPUT =
+  /\bcin\b|\bcin\s*>>|\bstd::cin\b|\bscanf\b|\bgetline\b|\bstd::getline\b|\bgets\b|\bgetchar\b/;
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX = 20;
@@ -43,14 +46,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { code, language = "cpp", input = "" } = body as RunCodeRequest;
+    const { code, language = "cpp" } = body as RunCodeRequest;
+    const hasInputField = typeof body?.input === "string";
+    const input = hasInputField ? (body.input as string) : "";
+    const likelyReadsInput = READS_INPUT.test(code);
 
     const check = validateCode(code, language);
     if (!check.valid) {
       return NextResponse.json({ output: `Error: ${check.error}`, success: false });
     }
 
-    if (typeof input !== "string" || input.length > MAX_INPUT_LENGTH) {
+    if (hasInputField && input.length > MAX_INPUT_LENGTH) {
       return NextResponse.json(
         { output: `Error: Input too large (max ${MAX_INPUT_LENGTH} characters)`, success: false },
         { status: 200 }
@@ -63,9 +69,21 @@ export async function POST(request: NextRequest) {
       await compile(sourceFile, executablePath);
 
       try {
-        const output = await runWithInput(executablePath, tempDir, input);
+        // No input field yet -> probe run. If the program hangs waiting for
+        // input, tell the client so it can offer an input row in the Output area.
+        const timeoutMs = hasInputField ? RUN_TIMEOUT_MS : INPUT_PROBE_TIMEOUT_MS;
+        const output = await runWithInput(executablePath, tempDir, input, timeoutMs, !hasInputField);
         return NextResponse.json({ output: output || "(no output)", success: true });
       } catch (runError) {
+        const err = runError as Error & { partialOutput?: string };
+        if (!hasInputField && err.message === "Execution timeout" && likelyReadsInput) {
+          const partial = err.partialOutput || "";
+          return NextResponse.json({
+            output: partial ? `${partial}\nProgram is waiting for input.` : "Program is waiting for input.",
+            success: false,
+            waitingForInput: true,
+          });
+        }
         return NextResponse.json(
           { output: `Error: ${sanitizeError(runError)}`, success: false },
           { status: 200 }
