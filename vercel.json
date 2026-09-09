@@ -1,0 +1,20 @@
+{
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "functions": {
+    "src/app/api/run-code/route.ts": {
+      "memory": 3008,
+      "maxDuration": 60,
+      "runtime": "nodejs20.x"
+    },
+    "src/app/api/check-code/route.ts": {
+      "memory": 3008,
+      "maxDuration": 60,
+      "runtime": "nodejs20.x"
+    }
+  },
+  "crons": []
+}

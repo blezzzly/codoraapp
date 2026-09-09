@@ -33,14 +33,15 @@ function compilerArgs(sourceFile: string, executablePath: string): string[] {
 export async function writeSource(code: string): Promise<{ tempDir: string; sourceFile: string; executablePath: string }> {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codora-"));
   const sourceFile = path.join(tempDir, "main.cpp");
-  const executablePath = path.join(tempDir, "main");
+  const executablePath = path.join(tempDir, "main.js");
   await fs.promises.writeFile(sourceFile, code, "utf-8");
   return { tempDir, sourceFile, executablePath };
 }
 
 export async function compile(sourceFile: string, executablePath: string): Promise<void> {
+  const cheerp = await import("cheerp");
   return new Promise((resolve, reject) => {
-    const child = spawn("g++", compilerArgs(sourceFile, executablePath), {
+    const child = spawn(cheerp.path, compilerArgs(sourceFile, executablePath), {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stderr = "";
@@ -73,7 +74,7 @@ export async function compile(sourceFile: string, executablePath: string): Promi
       if (code === 0) {
         resolve();
       } else {
-        const err = new Error(stderr || `g++ exited with code ${code}`) as Error & { stderr: string };
+        const err = new Error(stderr || `cheerp exited with code ${code}`) as Error & { stderr: string };
         err.stderr = stderr;
         reject(err);
       }
@@ -89,7 +90,9 @@ export async function runWithInput(
   keepStdinOpen: boolean = false
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(executablePath, [], {
+    const useNode = executablePath.endsWith(".js");
+    const actualExe = useNode ? "node" : executablePath;
+    const child = spawn(actualExe, useNode ? [executablePath] : [], {
       stdio: ["pipe", "pipe", "pipe"],
       cwd,
     });

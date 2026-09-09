@@ -69,8 +69,6 @@ export async function POST(request: NextRequest) {
       await compile(sourceFile, executablePath);
 
       try {
-        // No input field yet -> probe run. If the program hangs waiting for
-        // input, tell the client so it can offer an input row in the Output area.
         const timeoutMs = hasInputField ? RUN_TIMEOUT_MS : INPUT_PROBE_TIMEOUT_MS;
         const output = await runWithInput(executablePath, tempDir, input, timeoutMs, !hasInputField);
         return NextResponse.json({ output: output || "(no output)", success: true });
