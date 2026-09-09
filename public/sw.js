@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cpp-quest-v1';
+const CACHE_NAME = 'cpp-quest-v2';
 const STATIC_ASSETS = [
   '/',
   '/learn',
@@ -37,6 +37,24 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
+  // Navigations: always try the network first so new deploys apply immediately.
+  // Fall back to the cached copy when offline.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((hit) => hit || caches.match('/')))
+    );
+    return;
+  }
+
+  // Static assets: cache-first for speed and offline support.
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
