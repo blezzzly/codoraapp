@@ -177,7 +177,11 @@ export function Editor({
       onRun();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setOutput(`Error: ${message || "Failed to run program"}`);
+      setOutput(
+        typeof navigator !== "undefined" && !navigator.onLine
+          ? "You're offline. Connect to the internet to run your code."
+          : `Error: ${message || "Failed to run program"}`
+      );
     } finally {
       setIsRunning(false);
     }
@@ -212,7 +216,11 @@ export function Editor({
       onRun();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setOutput(`Error: ${message || "Failed to run program"}`);
+      setOutput(
+        typeof navigator !== "undefined" && !navigator.onLine
+          ? "You're offline. Connect to the internet to run your code."
+          : `Error: ${message || "Failed to run program"}`
+      );
     } finally {
       setIsRunning(false);
     }
@@ -286,7 +294,11 @@ export function Editor({
       onCheck(results);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setOutput(`Error: ${message || "Failed to run tests"}`);
+      setOutput(
+        typeof navigator !== "undefined" && !navigator.onLine
+          ? "You're offline. Connect to the internet to run your code."
+          : `Error: ${message || "Failed to run tests"}`
+      );
       onCheck(null);
     } finally {
       setIsChecking(false);

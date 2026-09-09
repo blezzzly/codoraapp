@@ -1,5 +1,6 @@
 import { AppProvider } from "@/hooks/useApp";
 import ClientLayout from "@/components/ClientLayout";
+import { PwaRegister } from "@/components/PwaRegister";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ErrorHandler } from "@/components/ErrorHandler";
@@ -61,6 +62,7 @@ export default function RootLayout({
       </head>
       <body className="bg-background text-foreground antialiased" style={{ fontFamily: "'Montserrat', sans-serif" }}>
         <ErrorHandler />
+        <PwaRegister />
         <AppProvider>
           <ClientLayout>
             {children}

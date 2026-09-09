@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cpp-quest-v2';
+const CACHE_NAME = 'cpp-quest-v3';
 const STATIC_ASSETS = [
   '/',
   '/learn',
@@ -14,9 +14,23 @@ const STATIC_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+
+      // Cache the app shell pages — never fail the install if one URL hiccups.
+      await Promise.allSettled(
+        STATIC_ASSETS.map((url) => cache.add(url).catch(() => {}))
+      );
+
+      // Also precache the hashed JS/CSS chunks referenced by the home page so
+      // the whole app shell works offline even on a totally fresh install.
+      try {
+        const res = await fetch('/', { cache: 'no-cache' });
+        const html = await res.text();
+        const urls = [...new Set(html.match(/\/_next\/static\/[^"']+\.(?:js|css)/g) || [])];
+        await Promise.allSettled(urls.map((url) => cache.add(url).catch(() => {})));
+      } catch {}
+    })()
   );
   self.skipWaiting();
 });
@@ -35,46 +49,57 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const request = event.request;
+  if (request.method !== 'GET') return;
 
-  // Navigations: always try the network first so new deploys apply immediately.
-  // Fall back to the cached copy when offline.
-  if (event.request.mode === 'navigate') {
+  const url = new URL(request.url);
+
+  // Don't touch the code-judge API — it must always go to the network.
+  if (url.pathname.startsWith('/api/')) return;
+
+  // Same-origin requests (page HTML, RSC payloads, hashed JS/CSS chunks):
+  // network-first so new deploys apply immediately, cached for offline use.
+  if (url.origin === self.location.origin) {
     event.respondWith(
-      fetch(event.request)
+      fetch(request)
         .then((response) => {
-          const responseToCache = response.clone();
+          const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
+            cache.put(request, clone);
           });
           return response;
         })
-        .catch(() => caches.match(event.request).then((hit) => hit || caches.match('/')))
+        .catch(async () => {
+          return (
+            (await caches.match(request)) ||
+            (await caches.match('/')) ||
+            Response.error()
+          );
+        })
     );
     return;
   }
 
-  // Static assets: cache-first for speed and offline support.
+  // Cross-origin fonts and the Monaco editor CDN: cache-first for offline.
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
+    (async () => {
+      const cached = await caches.match(request);
+      if (cached) return cached;
 
-      return fetch(event.request).then((response) => {
-        if (!response || response.status !== 200 || response.type !== 'basic') {
-          return response;
+      try {
+        const response = await fetch(request);
+        const ok = response && (response.status === 200 || response.status === 0);
+        const cacheable = ok && (response.type === 'basic' || response.type === 'cors');
+        if (cacheable) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, clone);
+          });
         }
-
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-
         return response;
-      }).catch(() => {
+      } catch {
         return caches.match('/');
-      });
-    })
+      }
+    })()
   );
 });
