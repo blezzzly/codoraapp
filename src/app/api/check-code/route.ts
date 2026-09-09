@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeSource, compile, runWithInput, normalizeOutput, cleanupDir, TestCaseResult } from "@/lib/codeExecutor";
 import { validateCode, sanitizeError } from "@/lib/codeValidation";
+import { explainCompileError } from "@/lib/explainError";
 
 interface TestCase {
   input: string;
@@ -109,8 +110,9 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ results, success: true });
     } catch (compileError) {
+      const message = sanitizeError(compileError);
       return NextResponse.json(
-        { compileError: sanitizeError(compileError), success: false },
+        { compileError: message, explanation: explainCompileError(message), success: false },
         { status: 200 }
       );
     } finally {

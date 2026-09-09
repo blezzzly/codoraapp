@@ -24,16 +24,23 @@ const communityCards = [
 export default function CommunityPage() {
   return (
     <div className="min-h-screen">
-      <div className="bg-white sticky top-0 md:top-16 z-30 backdrop-blur-md bg-white/95">
-        <div className="max-w-2xl mx-auto px-4 py-5">
-          <div className="flex items-center gap-2">
-            <Icon name="MessagesSquare" size={22} className="text-accent" />
-            <h1 className="text-xl font-bold text-slate-700">Community</h1>
-            <span className="ml-1 rounded-full bg-background px-2.5 py-0.5 text-[10px] font-bold text-foreground">
-              SOON
-            </span>
+      <div className="max-w-2xl mx-auto px-4 pt-6">
+        <div className="relative bg-white rounded-3xl p-6 shadow-lg shadow-black/15 overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-background rounded-full blur-3xl -z-0" />
+          <div className="relative flex items-center gap-4">
+            <div className="w-14 h-14 shrink-0 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-black/20">
+              <Icon name="MessagesSquare" size={26} className="text-foreground" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-700 flex items-center gap-2">
+                Community
+                <span className="rounded-full bg-background px-2.5 py-0.5 text-[10px] font-bold text-foreground">
+                  SOON
+                </span>
+              </h1>
+              <p className="text-sm text-slate-400">Learn together. Grow together.</p>
+            </div>
           </div>
-          <p className="text-sm text-slate-400 mt-0.5">Learn together. Grow together.</p>
         </div>
       </div>
 
@@ -64,7 +71,7 @@ export default function CommunityPage() {
           {communityCards.map((card) => (
             <div
               key={card.title}
-              className="animate-fade-in-up opacity-0 rounded-3xl bg-white p-5 shadow-sm"
+              className="animate-fade-in-up opacity-0 rounded-3xl bg-white p-5 shadow-lg shadow-black/15"
               style={{ animationFillMode: "forwards", animationDelay: "100ms" }}
             >
               <span

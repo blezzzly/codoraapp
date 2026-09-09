@@ -43,13 +43,20 @@ export function Editor({
   language = "cpp",
 }: EditorProps) {
   const [output, setOutput] = useState<string>("> Ready to run...");
+  const [stdInput, setStdInput] = useState<string>("");
+  const [explanation, setExplanation] = useState<{ hint: string; why: string; tryChecking: string; line?: number } | null>(null);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isChecking, setIsChecking] = useState<boolean>(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [activeMonaco, setActiveMonaco] = useState<any>(null);
   const editorDivRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<any>(null);
+  const onCodeChangeRef = useRef(onCodeChange);
   const { show } = useToast();
+
+  useEffect(() => {
+    onCodeChangeRef.current = onCodeChange;
+  }, [onCodeChange]);
 
   useEffect(() => {
     configureLoader();
@@ -113,7 +120,7 @@ export function Editor({
 
     const sub = editor.onDidChangeModelContent(() => {
       const code = editor.getValue() || "";
-      onCodeChange(code);
+      onCodeChangeRef.current(code);
     });
 
     editorRef.current = editor;
@@ -129,7 +136,7 @@ export function Editor({
         editorRef.current = null;
       }
     };
-  }, [activeMonaco, initialCode, language, onCodeChange]);
+  }, [activeMonaco, language]);
 
   const handleRun = useCallback(async () => {
     const code = editorRef.current?.getValue?.() || initialCode;
@@ -145,11 +152,12 @@ export function Editor({
       const response = await fetch("/api/run-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language }),
+        body: JSON.stringify({ code, language, input: stdInput }),
       });
 
       const result = await response.json();
       setOutput(result.output || "(no output)");
+      setExplanation(result.explanation || null);
       onRun();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -157,7 +165,7 @@ export function Editor({
     } finally {
       setIsRunning(false);
     }
-  }, [initialCode, language, onRun]);
+  }, [initialCode, language, onRun, stdInput]);
 
   const handleCheck = useCallback(async () => {
     if (!testCases || testCases.length === 0) {
@@ -189,6 +197,7 @@ export function Editor({
 
       if (!result.success) {
         setOutput(`Compilation error:\n${result.compileError || "Unknown error"}`);
+        setExplanation(result.explanation || null);
         onCheck(null);
         setIsChecking(false);
         return;
@@ -221,6 +230,7 @@ export function Editor({
 
       outputText += `\n\n${passedCount}/${results.length} passed.`;
       setOutput(outputText);
+      setExplanation(null);
 
       onCheck(results);
     } catch (error) {
@@ -268,6 +278,20 @@ export function Editor({
 
       <div ref={editorDivRef} className="h-[280px] sm:h-[350px] w-full" />
 
+      <div className="bg-[#181825] border-t border-[#313244] px-4 py-2">
+        <div className="flex items-center gap-2 mb-1">
+          <TerminalIcon className="w-3 h-3 text-gray-500" />
+          <span className="text-gray-500 uppercase tracking-wider text-[10px]">Standard Input</span>
+        </div>
+        <textarea
+          value={stdInput}
+          onChange={(e) => setStdInput(e.target.value)}
+          placeholder="Type the input your program reads here (used by cin)..."
+          rows={2}
+          className="w-full bg-[#11111b] text-gray-300 font-mono text-xs rounded-lg p-2 border border-[#313244] focus:outline-none focus:border-gray-500 resize-y"
+        />
+      </div>
+
       <div className="bg-[#181825] text-gray-300 px-4 py-3 font-mono text-xs min-h-[100px] max-h-[140px] overflow-auto border-t border-[#313244]">
         <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#313244]">
           <TerminalIcon className="w-3 h-3 text-gray-500" />
@@ -279,6 +303,16 @@ export function Editor({
             </div>
           )}
         </div>
+        {explanation && (
+          <div className="mb-3 p-3 rounded-lg bg-rose-950/60 border border-rose-500/30">
+            <p className="text-rose-300 text-[11px] font-bold mb-1.5 uppercase tracking-wider">
+              {explanation.line ? `Heads up (line ${explanation.line})` : "What happened?"}
+            </p>
+            <p className="text-gray-200 text-xs mb-1">{explanation.hint}</p>
+            <p className="text-gray-400 text-[11px] mb-1"><span className="text-gray-300 font-semibold">Why? </span>{explanation.why}</p>
+            <p className="text-gray-400 text-[11px]"><span className="text-gray-300 font-semibold">Try checking: </span>{explanation.tryChecking}</p>
+          </div>
+        )}
         <pre className="whitespace-pre-wrap">{output}</pre>
         {testResults.length > 0 && (
           <div className="mt-2 pt-2 border-t border-[#313244]">

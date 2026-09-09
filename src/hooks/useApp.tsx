@@ -17,6 +17,7 @@ interface AppContextType {
   updateProgress: (problemId: string, status: ProblemStatus, code?: string) => Promise<void>;
   addXP: (amount: number) => Promise<void>;
   checkStreak: () => Promise<void>;
+  updateDailyGoal: (goal: number) => Promise<void>;
   refreshData: () => Promise<void>;
 }
 
@@ -65,6 +66,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAchievements(defaultAchievements);
       }
 
+      const activeProfile = savedProfile ?? defaultProfile;
+      const synced = checkAchievements(defaultAchievements, activeProfile, progressMap);
+      await db.saveAchievements(synced);
+      setAchievements(synced);
+
       setIsLoaded(true);
     } catch (error) {
       console.error("Failed to load data:", error);
@@ -89,31 +95,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       await db.saveProgress(newProgress);
-      setProgress((prev) => ({
-        ...prev,
-        [problemId]: newProgress,
-      }));
     } catch (error) {
       console.error("Failed to save progress:", error);
     }
+    const mergedProgress = {
+      ...progress,
+      [problemId]: newProgress,
+    };
+    setProgress(mergedProgress);
+
+    let nextProfile: UserProfile = profile;
 
     if (status === "solved" && !wasSolved) {
       const problem = problems.find((p) => p.id === problemId);
       if (problem) {
-        await addXP(problem.xpReward);
-        setProfile((prev) => ({
-          ...prev,
-          totalProblemsSolved: prev.totalProblemsSolved + 1,
-          totalSubmissions: prev.totalSubmissions + 1,
-        }));
+        const newXP = nextProfile.xp + problem.xpReward;
+        nextProfile = {
+          ...nextProfile,
+          xp: newXP,
+          level: Math.floor(newXP / 100) + 1,
+          totalProblemsSolved: nextProfile.totalProblemsSolved + 1,
+          totalSubmissions: nextProfile.totalSubmissions + 1,
+          lastActive: Date.now(),
+        };
+        setProfile(nextProfile);
+        try {
+          await db.saveUserProfile(nextProfile);
+        } catch (error) {
+          console.error("Failed to save profile:", error);
+        }
       }
     } else if (status !== "solved") {
-      setProfile((prev) => ({
-        ...prev,
-        totalSubmissions: prev.totalSubmissions + 1,
-      }));
+      nextProfile = {
+        ...nextProfile,
+        totalSubmissions: nextProfile.totalSubmissions + 1,
+      };
+      setProfile(nextProfile);
+      try {
+        await db.saveUserProfile(nextProfile);
+      } catch (error) {
+        console.error("Failed to save profile:", error);
+      }
     }
-  }, [progress]);
+
+    const synced = checkAchievements(defaultAchievements, nextProfile, mergedProgress);
+    setAchievements(synced);
+    try {
+      await db.saveAchievements(synced);
+    } catch (error) {
+      console.error("Failed to sync achievements:", error);
+    }
+  }, [progress, profile, problems]);
 
   const addXP = useCallback(async (amount: number) => {
     setProfile((prev) => {
@@ -155,6 +187,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [isLoaded, checkStreak]);
 
+  const updateDailyGoal = useCallback(async (goal: number) => {
+    setProfile((prev) => {
+      const updatedProfile = { ...prev, dailyGoal: goal };
+      db.saveUserProfile(updatedProfile).catch(console.error);
+      return updatedProfile;
+    });
+  }, []);
+
   const contextValue: AppContextType = {
     profile,
     progress,
@@ -165,6 +205,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateProgress,
     addXP,
     checkStreak,
+    updateDailyGoal,
     refreshData,
   };
 

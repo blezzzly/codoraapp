@@ -1,12 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useApp } from "@/hooks/useApp";
 import { getProblemById } from "@/data/problems";
 import { Icon } from "@/components/ui/icon";
+
+const DEFAULT_TEMPLATE = `#include <iostream>
+
+int main() {
+
+//start your program here
+
+}`;
 
 const CodeEditor = dynamic(
   () => import("@/components/editor/CodeEditor").then(mod => mod.Editor),
@@ -68,8 +76,9 @@ function CodeBlock({ code, language = "cpp" }: { code: string; language?: string
 
 export default function ProblemPage() {
   const params = useParams();
+  const router = useRouter();
   const problemId = params?.problemId as string;
-  const { updateProgress } = useApp();
+  const { updateProgress, problems } = useApp();
   
   const [code, setCode] = useState<string>("");
   const [showHint, setShowHint] = useState<number>(0);
@@ -82,7 +91,7 @@ export default function ProblemPage() {
   useEffect(() => {
     setMounted(true);
     if (problem) {
-      setCode(problem.starterCode);
+      setCode(DEFAULT_TEMPLATE);
     }
   }, [problem]);
 
@@ -109,7 +118,18 @@ export default function ProblemPage() {
     if (allPassed) {
       await updateProgress(problem.id, "solved", code);
       setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
+
+      const currentIndex = problems.findIndex((p) => p.id === problem.id);
+      const nextProblem = problems[currentIndex + 1];
+
+      setTimeout(() => {
+        setShowSuccess(false);
+        if (nextProblem) {
+          router.push(`/learn/${nextProblem.id}`);
+        } else {
+          router.push("/learn");
+        }
+      }, 1800);
     } else {
       await updateProgress(problem.id, "in-progress", code);
     }
@@ -135,7 +155,7 @@ export default function ProblemPage() {
       )}
 
       {/* Header */}
-      <div className="bg-white sticky top-0 md:top-16 z-40 backdrop-blur-md bg-white/95">
+      <div className="bg-white sticky top-14 md:top-16 z-40 backdrop-blur-md bg-white/95">
         <div className="max-w-2xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Link href="/practice" className="flex items-center gap-2 text-slate-500 hover:text-slate-700 transition-colors">
@@ -156,11 +176,11 @@ export default function ProblemPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-8">
-        {/* Lesson Header */}
+        {/* Problem Header */}
         <div className="text-center animate-fade-in-up">
           <div className="inline-flex items-center gap-2 mb-3">
-            <Icon name="BookOpen" size={20} className="text-accent" />
-            <span className="text-sm font-semibold text-foreground">Lesson {problem.lessonOrder}</span>
+            <Icon name="Code" size={20} className="text-accent" />
+            <span className="text-sm font-semibold text-foreground">Problem {problem.lessonOrder}</span>
           </div>
           <h1 className="text-3xl font-bold text-slate-700 mb-2">{problem.title}</h1>
           <p className="text-slate-400 max-w-md mx-auto">{problem.description}</p>
@@ -168,7 +188,7 @@ export default function ProblemPage() {
 
         {/* Problem Statement */}
         <div className="animate-fade-in-up stagger-1">
-          <div className="bg-white rounded-3xl p-6 shadow-lg shadow-[var(--shadow-color)]/60">
+          <div className="bg-white rounded-3xl p-6 shadow-lg shadow-black/15">
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
@@ -213,7 +233,7 @@ export default function ProblemPage() {
         {/* Constraints */}
         {problem.constraints.length > 0 && (
           <div className="animate-fade-in-up stagger-3">
-            <div className="bg-white rounded-2xl p-5 shadow-lg shadow-[var(--shadow-color)]/60">
+            <div className="bg-white rounded-2xl p-5 shadow-lg shadow-black/15">
               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Constraints</h3>
               <ul className="space-y-2">
                 {problem.constraints.map((c, i) => (
@@ -327,13 +347,11 @@ export default function ProblemPage() {
             <Icon name="ChevronLeft" size={20} />
             <span className="text-sm font-medium">All Problems</span>
           </Link>
-          <Link 
-            href="/learn" 
-            className="flex items-center gap-2 px-5 py-2.5 bg-secondary text-foreground rounded-full font-semibold hover:bg-primary transition-colors shadow-lg shadow-primary btn-press"
-          >
-            Next Lesson
-            <Icon name="ChevronRight" size={20} />
-          </Link>
+          <span className="text-xs text-slate-400 text-right">
+            Pass all tests to move to
+            <br />
+            the next lesson
+          </span>
         </div>
       </div>
     </div>

@@ -39,7 +39,7 @@
   --input: #FFFFFF;
   --ring: #F0C0C0;
   --radius: 1rem;
-  --shadow-color: #F0D5D5;
+  --shadow-color: #000000;
 }
 
 * {
@@ -209,6 +209,7 @@ body {
 .stagger-5 { animation-delay: 0.5s; }
 .stagger-6 { animation-delay: 0.6s; }
 .stagger-7 { animation-delay: 0.7s; }
+.stagger-8 { animation-delay: 0.8s; }
 
 .learning-path-line {
   position: absolute;

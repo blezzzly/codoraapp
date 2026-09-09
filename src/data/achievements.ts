@@ -1,4 +1,5 @@
 import type { Achievement } from "@/types";
+import { problemTopic } from "@/content";
 
 export const achievements: Achievement[] = [
   {
@@ -40,6 +41,14 @@ export const achievements: Achievement[] = [
     icon: "RotateCw",
     unlocked: false,
     criteria: "complete-loop-problem",
+  },
+  {
+    id: "loop-master",
+    title: "Loop Master",
+    description: "Complete all beginner loop exercises",
+    icon: "RotateCw",
+    unlocked: false,
+    criteria: "complete-all-beginner-loops",
   },
   {
     id: "ten-solved",
@@ -106,6 +115,7 @@ export function checkAchievements(
     xp: number;
     streak: number;
     totalProblemsSolved: number;
+    totalSubmissions: number;
   },
   progress: Record<string, { status: string }>
 ): Achievement[] {
@@ -113,6 +123,12 @@ export function checkAchievements(
     if (achievement.unlocked) return achievement;
 
     let shouldUnlock = false;
+
+    const loopProblems = Object.keys(problemTopic).filter((id) => {
+      const t = problemTopic[id];
+      return t === "for-loops" || t === "while-loops" || t === "do-while-loops";
+    });
+    const loopSolvedCount = loopProblems.filter((id) => progress[id]?.status === "solved").length;
 
     switch (achievement.criteria) {
       case "complete-1-problem":
@@ -129,6 +145,15 @@ export function checkAchievements(
         break;
       case "unlock-world":
         shouldUnlock = profile.totalProblemsSolved >= 5;
+        break;
+      case "complete-loop-problem":
+        shouldUnlock = loopSolvedCount >= 1;
+        break;
+      case "complete-all-beginner-loops":
+        shouldUnlock = loopProblems.length > 0 && loopSolvedCount === loopProblems.length;
+        break;
+      case "debug-test":
+        shouldUnlock = profile.totalSubmissions >= 3;
         break;
     }
 

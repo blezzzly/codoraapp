@@ -61,7 +61,7 @@ export default function ProgressPage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <div className="bg-white sticky top-0 md:top-16 z-30 backdrop-blur-md bg-white/95">
+      <div className="bg-white sticky top-14 md:top-16 z-30 backdrop-blur-md bg-white/95">
         <div className="max-w-2xl mx-auto px-4 py-5">
           <div className="flex items-center gap-2">
             <Icon name="TrendingUp" size={22} className="text-accent" />
@@ -74,7 +74,7 @@ export default function ProgressPage() {
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {/* Profile Card */}
         <div className="animate-fade-in-up opacity-0" style={{ animationFillMode: "forwards" }}>
-          <div className="bg-white rounded-3xl p-6 text-foreground shadow-xl shadow-primary/50 relative overflow-hidden">
+          <div className="bg-white rounded-3xl p-6 text-foreground shadow-xl shadow-black/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
             <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
             <div className="relative">
@@ -102,21 +102,21 @@ export default function ProgressPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3 animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s", animationFillMode: "forwards" }}>
-          <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-[var(--shadow-color)]/60 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+          <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
             <div className="w-11 h-11 mx-auto mb-2 rounded-xl bg-amber-50 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
               <Icon name="Trophy" size={20} className="text-amber-500" />
             </div>
             <p className="text-2xl font-bold text-slate-700 tabular-nums">{solvedProblems.length}</p>
             <p className="text-xs text-slate-400">Solved</p>
           </div>
-          <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-[var(--shadow-color)]/60 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+          <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
             <div className="w-11 h-11 mx-auto mb-2 rounded-xl bg-background flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
               <Icon name="Zap" size={20} className="text-accent" />
             </div>
             <p className="text-2xl font-bold text-slate-700 tabular-nums">{animatedXP}</p>
             <p className="text-xs text-slate-400">Total XP</p>
           </div>
-          <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-[var(--shadow-color)]/60 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+          <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
             <div className="w-11 h-11 mx-auto mb-2 rounded-xl bg-violet-50 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
               <Icon name="Award" size={20} className="text-violet-500" />
             </div>
@@ -127,7 +127,7 @@ export default function ProgressPage() {
 
         {/* Mastery */}
         <div className="animate-fade-in-up opacity-0" style={{ animationDelay: "0.2s", animationFillMode: "forwards" }}>
-          <div className="bg-white rounded-2xl p-5 shadow-lg shadow-[var(--shadow-color)]/60 hover:shadow-lg transition-shadow duration-300">
+          <div className="bg-white rounded-2xl p-5 shadow-lg shadow-black/15 hover:shadow-lg transition-shadow duration-300">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="font-bold text-slate-700">Overall Mastery</h3>
@@ -163,7 +163,7 @@ export default function ProgressPage() {
               return (
                 <div 
                   key={world.id} 
-                  className="group bg-white rounded-2xl p-4 shadow-lg shadow-[var(--shadow-color)]/60 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+                  className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
                   style={{ animationDelay: `${0.4 + idx * 0.1}s` }}
                 >
                   <div className="flex items-center gap-3 mb-2">
@@ -232,7 +232,7 @@ export default function ProgressPage() {
 
         {/* Journey Stats */}
         <div className="animate-fade-in-up opacity-0" style={{ animationDelay: "0.6s", animationFillMode: "forwards" }}>
-          <div className="bg-white rounded-2xl p-5 shadow-lg shadow-[var(--shadow-color)]/60 hover:shadow-lg transition-shadow duration-300">
+          <div className="bg-white rounded-2xl p-5 shadow-lg shadow-black/15 hover:shadow-lg transition-shadow duration-300">
             <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
               <Icon name="Info" size={16} className="text-accent" />
               Journey Stats

@@ -3,7 +3,11 @@ const STATIC_ASSETS = [
   '/',
   '/learn',
   '/practice',
+  '/challenges',
+  '/library',
+  '/ide',
   '/progress',
+  '/profile',
   '/settings',
   '/manifest.json',
 ];

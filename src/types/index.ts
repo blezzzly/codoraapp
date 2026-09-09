@@ -60,6 +60,16 @@ export interface LessonContent {
   keyConcepts: KeyConcept[];
   example: ExampleBlock;
   studentTask: string;
+  notes: string[];
+  commonMistakes: { mistake: string; fix: string }[];
+  quiz: QuizQuestion[];
+}
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  answerIndex: number;
+  explanation: string;
 }
 
 export interface KeyConcept {
@@ -156,6 +166,58 @@ export interface UserSettings {
   fontSize: "small" | "medium" | "large";
   autoRun: boolean;
   showHints: boolean;
+}
+
+export type Topic =
+  | "introduction"
+  | "variables"
+  | "data-types"
+  | "input-output"
+  | "operators"
+  | "conditions"
+  | "switch"
+  | "for-loops"
+  | "while-loops"
+  | "do-while-loops"
+  | "functions"
+  | "arrays"
+  | "strings"
+  | "pointers"
+  | "structures"
+  | "oop"
+  | "classes";
+
+export interface Announcement {
+  id: string;
+  type: "new" | "lesson" | "challenge" | "update" | "info";
+  title: string;
+  body: string;
+  publishedAt: number;
+  link?: { href: string; label: string };
+}
+
+export interface Challenge {
+  id: string;
+  title: string;
+  topic: Topic;
+  difficulty: Difficulty;
+  description: string;
+  example: { input: string; output: string };
+  starterCode: string;
+  hints: Hint[];
+  xpReward: number;
+  active: boolean;
+  label?: string;
+}
+
+export interface CodeExample {
+  id: string;
+  category: Topic;
+  title: string;
+  description: string;
+  code: string;
+  explanation: string;
+  output: string;
 }
 
 export type TabType = "dashboard" | "learn" | "practice" | "progress" | "settings";

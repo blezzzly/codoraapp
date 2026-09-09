@@ -91,7 +91,7 @@ export async function saveSettings(settings: unknown): Promise<void> {
   safeSet(STORAGE_KEYS.SETTINGS, settings);
 }
 
-export async function saveSubmission(submission: unknown): Promise<void> {
+export async function saveSubmission(_submission: unknown): Promise<void> {
   // No-op for now
 }
 

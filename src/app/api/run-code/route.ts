@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeSource, compile, runWithInput, cleanupDir } from "@/lib/codeExecutor";
 import { validateCode, sanitizeError } from "@/lib/codeValidation";
+import { explainCompileError } from "@/lib/explainError";
 
 interface RunCodeRequest {
   code: string;
   language?: string;
+  input?: string;
 }
+
+const MAX_INPUT_LENGTH = 10000;
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX = 20;
@@ -39,22 +43,38 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { code, language = "cpp" } = body as RunCodeRequest;
+    const { code, language = "cpp", input = "" } = body as RunCodeRequest;
 
     const check = validateCode(code, language);
     if (!check.valid) {
       return NextResponse.json({ output: `Error: ${check.error}`, success: false });
     }
 
+    if (typeof input !== "string" || input.length > MAX_INPUT_LENGTH) {
+      return NextResponse.json(
+        { output: `Error: Input too large (max ${MAX_INPUT_LENGTH} characters)`, success: false },
+        { status: 200 }
+      );
+    }
+
     const { tempDir, sourceFile, executablePath } = await writeSource(code);
 
     try {
       await compile(sourceFile, executablePath);
-      const output = await runWithInput(executablePath, tempDir, "");
-      return NextResponse.json({ output: output || "(no output)", success: true });
+
+      try {
+        const output = await runWithInput(executablePath, tempDir, input);
+        return NextResponse.json({ output: output || "(no output)", success: true });
+      } catch (runError) {
+        return NextResponse.json(
+          { output: `Error: ${sanitizeError(runError)}`, success: false },
+          { status: 200 }
+        );
+      }
     } catch (compileError) {
+      const message = sanitizeError(compileError);
       return NextResponse.json(
-        { output: `Error: ${sanitizeError(compileError)}`, success: false },
+        { output: `Error: ${message}`, explanation: explainCompileError(message), success: false },
         { status: 200 }
       );
     } finally {

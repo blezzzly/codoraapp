@@ -5,17 +5,6 @@ import { useApp } from "@/hooks/useApp";
 import { Icon } from "@/components/ui/icon";
 import { useState, useEffect } from "react";
 
-function getDifficultyColor(difficulty: string): { bg: string; text: string } {
-  const colors: Record<string, { bg: string; text: string }> = {
-    beginner: { bg: "bg-background", text: "text-foreground" },
-    easy: { bg: "bg-background", text: "text-foreground" },
-    medium: { bg: "bg-amber-50", text: "text-amber-600" },
-    hard: { bg: "bg-orange-50", text: "text-orange-600" },
-    challenge: { bg: "bg-rose-50", text: "text-rose-600" },
-  };
-  return colors[difficulty] || colors.beginner;
-}
-
 export default function LearnPage() {
   const { worlds, problems, progress } = useApp();
   const [mounted, setMounted] = useState(false);
@@ -42,18 +31,23 @@ export default function LearnPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <div className="bg-white sticky top-0 md:top-16 z-30 backdrop-blur-md bg-white/95">
-        <div className="max-w-2xl mx-auto px-4 py-5">
-          <div className="flex items-center gap-2 mb-1">
-            <Icon name="GraduationCap" size={22} className="text-accent" />
-            <h1 className="text-xl font-bold text-slate-700">Learning Path</h1>
-          </div>
-          <p className="text-sm text-slate-400">Your journey from zero to c++ hero</p>
-        </div>
-      </div>
-
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-10">
+        {/* Page Header */}
+        <div>
+          <div className="relative bg-white rounded-3xl p-6 shadow-lg shadow-black/15 overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-background rounded-full blur-3xl -z-0" />
+            <div className="relative flex items-center gap-4">
+              <div className="w-14 h-14 shrink-0 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-black/20">
+                <Icon name="GraduationCap" size={26} className="text-foreground" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-slate-700">Learning Path</h1>
+                <p className="text-sm text-slate-400">Your journey from zero to c++ hero</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {worlds.map((world, worldIdx) => {
           const worldProblems = problems.filter(p => p.world === world.id);
           const solvedInWorld = worldProblems.filter(p => progress[p.id]?.status === "solved").length;
@@ -65,24 +59,22 @@ export default function LearnPage() {
           return (
             <div key={world.id} className="animate-fade-in-up opacity-0" style={{ animationDelay: `${worldIdx * 0.15}s`, animationFillMode: "forwards" }}>
               {/* World Header */}
-              <div className="mb-6 text-center">
-                <div className="inline-flex items-center gap-3 mb-3">
+              <div className="mb-8">
+                <div className="flex items-center gap-3 mb-2">
                   <div 
-                    className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md transition-transform duration-300 hover:scale-110 hover:rotate-3"
+                    className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center shadow-md transition-transform duration-300 hover:scale-110 hover:rotate-3"
                     style={{ backgroundColor: `${world.color}20` }}
                   >
                     <Icon name={world.icon} size={24} className="text-foreground" />
                   </div>
-                  <div className="text-left">
-                    <h2 className={`text-2xl font-bold ${worldTitleColor}`}>
-                      {world.title}
-                    </h2>
-                  </div>
+                  <h2 className={`text-2xl font-bold ${worldTitleColor}`}>
+                    {world.title}
+                  </h2>
                 </div>
-                <p className="text-sm text-slate-400 max-w-md mx-auto mb-3">{world.description}</p>
+                <p className="text-sm text-slate-400 ml-[60px]">{world.description}</p>
                 {totalInWorld > 0 && (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="relative w-36 h-2 bg-secondary rounded-full overflow-hidden">
+                  <div className="flex items-center gap-3 mt-4 ml-[60px]">
+                    <div className="relative flex-1 h-2 bg-secondary rounded-full overflow-hidden">
                       <div 
                         className="absolute inset-y-0 left-0 bg-secondary rounded-full transition-all duration-1000 ease-out"
                         style={{ width: `${progressPercent}%` }}
@@ -106,7 +98,6 @@ export default function LearnPage() {
                   const isLocked = !isUnlocked && index > 0;
                   const isLast = index === worldProblems.length - 1;
                   const isCurrent = !isSolved && (index === solvedInWorld);
-                  const difficultyStyle = getDifficultyColor(problem.difficulty);
 
                   return (
                     <div 
@@ -125,19 +116,19 @@ export default function LearnPage() {
 
                       {/* Lesson Card */}
                       <Link
-                        href={isLocked ? "#" : `/practice/${problem.id}`}
+                        href={isLocked ? "#" : `/learn/${problem.id}`}
                         className={`block ${isLocked ? "pointer-events-none" : ""}`}
                       >
                         <div 
-                          className={`relative bg-white rounded-2xl p-4 shadow-sm transition-all duration-300 ${
+                          className={`relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 transition-all duration-300 ${
                             isCurrent
-                              ? "shadow-lg shadow-primary/50 ring-2 ring-primary"
+                              ? "shadow-lg shadow-black/20 ring-2 ring-primary"
                               : isSolved
                               ? ""
                               : isLocked
                               ? "opacity-50"
                               : ""
-                          } ${!isLocked ? "hover:shadow-md hover:-translate-y-0.5" : ""}`}
+                          } ${!isLocked ? "hover:shadow-lg hover:-translate-y-0.5" : ""}`}
                         >
                           <div className="flex items-center gap-4">
                             {/* Status Icon */}
@@ -147,7 +138,7 @@ export default function LearnPage() {
                                   <Icon name="Lock" size={18} className="text-slate-400" />
                                 </div>
                               ) : isSolved ? (
-                                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-md shadow-primary transition-all duration-300 hover:scale-110">
+                                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-md shadow-black/20 transition-all duration-300 hover:scale-110">
                                   <Icon name="CheckCircle" size={22} className="text-foreground" />
                                 </div>
                               ) : isInProgress ? (
@@ -155,7 +146,7 @@ export default function LearnPage() {
                                   <Icon name="PlayCircle" size={18} className="text-amber-600" />
                                 </div>
                               ) : isCurrent ? (
-                                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shadow-md shadow-primary transition-transform duration-300 hover:scale-110 animate-pulse-soft">
+                                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shadow-md shadow-black/20 transition-transform duration-300 hover:scale-110 animate-pulse-soft">
                                   <span className="text-base font-bold text-foreground">{problem.lessonOrder}</span>
                                 </div>
                               ) : (
@@ -171,27 +162,29 @@ export default function LearnPage() {
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                   Lesson {String(problem.lessonOrder).padStart(2, "0")}
                                 </span>
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${difficultyStyle.bg} ${difficultyStyle.text}`}>
-                                  {problem.difficulty}
-                                </span>
                               </div>
                               <h3 className="font-bold text-slate-700 mb-0.5">{problem.title}</h3>
                               <p className="text-xs text-slate-400 line-clamp-1">
                                 {problem.description.split(".")[0]}
                               </p>
+                              {problem.concepts.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {problem.concepts.slice(0, 3).map((concept) => (
+                                    <span key={concept} className="px-2 py-0.5 rounded-full bg-background text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                      {concept}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
 
-                            {/* XP & Arrow */}
+                            {/* Study Arrow */}
                             <div className="flex-shrink-0 flex items-center gap-2">
-                              <div className="text-right">
-                                <p className="text-xs font-bold text-amber-500 flex items-center gap-1">
-                                  <Icon name="Zap" size={10} />
-                                  +{problem.xpReward}
-                                </p>
-                                <p className="text-[10px] text-slate-400 font-semibold">XP</p>
-                              </div>
                               {!isLocked && (
-                                <Icon name="ChevronRight" size={18} className="text-slate-300 transition-transform duration-300 group-hover:translate-x-1" />
+                                <span className="text-xs font-bold text-slate-400 group-hover:text-foreground transition-colors">
+                                  Study
+                                  <Icon name="ChevronRight" size={18} className="inline text-slate-300 transition-transform duration-300 group-hover:translate-x-1 ml-0.5" />
+                                </span>
                               )}
                             </div>
                           </div>

@@ -62,6 +62,9 @@ const iconMap: Record<string, React.ComponentType<{ className?: string; style?: 
   MessagesSquare: LucideIcons.MessagesSquare,
   MessageSquare: LucideIcons.MessageSquare,
   ChevronUp: LucideIcons.ChevronUp,
+  ChevronDown: LucideIcons.ChevronDown,
+  Coffee: LucideIcons.Coffee,
+  Clock: LucideIcons.Clock,
   Search: LucideIcons.Search,
 };
 

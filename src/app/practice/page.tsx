@@ -60,18 +60,25 @@ export default function PracticePage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <div className="bg-white sticky top-0 md:top-16 z-30 backdrop-blur-md bg-white/95">
-        <div className="max-w-2xl mx-auto px-4 py-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-slate-700">Practice</h1>
-              <p className="text-sm text-slate-400 mt-0.5 tabular-nums">
-                {solvedCount} of {problems.length} completed
-              </p>
+      <div className="max-w-2xl mx-auto px-4 pt-6">
+        <div className="relative bg-white rounded-3xl p-6 shadow-lg shadow-black/15 overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-background rounded-full blur-3xl -z-0" />
+          <div className="relative flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-14 h-14 shrink-0 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-black/20">
+                <Icon name="Code" size={26} className="text-foreground" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold text-slate-700">Practice</h1>
+                <p className="text-sm text-slate-400 tabular-nums truncate">
+                  {solvedCount} of {problems.length} completed
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 hover:scale-105 transition-transform duration-300">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 shrink-0">
               <Icon name="Zap" size={16} className="text-accent" />
               <span className="text-sm font-bold text-amber-600 tabular-nums">{totalXP}</span>
+              <span className="text-xs text-amber-500">XP</span>
             </div>
           </div>
         </div>
@@ -90,7 +97,7 @@ export default function PracticePage() {
               onClick={() => setFilter(tab.id)}
               className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-300 btn-press flex items-center gap-1.5 ${
                 filter === tab.id
-                  ? "bg-secondary text-foreground shadow-md shadow-primary"
+                  ? "bg-secondary text-foreground shadow-md shadow-black/20"
                   : "bg-white text-slate-600 hover:text-foreground hover:shadow-sm"
               }`}
             >
@@ -118,7 +125,7 @@ export default function PracticePage() {
                 className="block group animate-fade-in-up opacity-0"
                 style={{ animationDelay: `${index * 0.06}s`, animationFillMode: "forwards" }}
               >
-                <div className={`relative bg-white rounded-2xl p-5 shadow-lg shadow-[var(--shadow-color)]/60 transition-all duration-300 overflow-hidden group-hover:shadow-lg group-hover:-translate-y-1`}>
+                <div className={`relative bg-white rounded-2xl p-5 shadow-lg shadow-black/15 transition-all duration-300 overflow-hidden group-hover:shadow-lg group-hover:-translate-y-1`}>
                   {/* Hover gradient */}
                   <div className="absolute inset-0 bg-background opacity-0 group-hover:opacity-100 transition-all duration-300" />
                   
@@ -127,7 +134,7 @@ export default function PracticePage() {
                       {/* Status */}
                       <div className="flex-shrink-0 pt-1">
 {isSolved ? (
-                           <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-md shadow-primary transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6">
+                           <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-md shadow-black/20 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6">
                              <Icon name="CheckCircle" size={20} className="text-foreground" />
                            </div>
                          ) : isInProgress ? (
