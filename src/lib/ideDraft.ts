@@ -26,6 +26,7 @@ function safeSet(key: string, value: unknown): void {
 }
 
 export const DEFAULT_IDE_CODE = `#include <iostream>
+using namespace std;
 
 int main() {
 

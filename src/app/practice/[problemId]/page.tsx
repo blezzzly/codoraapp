@@ -9,6 +9,7 @@ import { getProblemById } from "@/data/problems";
 import { Icon } from "@/components/ui/icon";
 
 const DEFAULT_TEMPLATE = `#include <iostream>
+using namespace std;
 
 int main() {
 
