@@ -1,20 +1,6 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
-import { loader } from "@monaco-editor/react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Play, Check, Terminal as TerminalIcon } from "lucide-react";
-
-let loaderConfigured = false;
-function configureLoader() {
-  if (loaderConfigured) return;
-  try {
-    loader.config({
-      paths: {
-        vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs",
-      },
-    });
-    loaderConfigured = true;
-  } catch {}
-}
 
 interface TestResult {
   passed: boolean;
@@ -42,6 +28,7 @@ export function Editor({
   testCases,
   language = "cpp",
 }: EditorProps) {
+  const [code, setCode] = useState(initialCode);
   const [output, setOutput] = useState<string>("> Ready to run...");
   const [waitingForInput, setWaitingForInput] = useState<boolean>(false);
   const [consoleInput, setConsoleInput] = useState<string>("");
@@ -49,100 +36,40 @@ export function Editor({
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isChecking, setIsChecking] = useState<boolean>(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [activeMonaco, setActiveMonaco] = useState<any>(null);
-  const editorDivRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<any>(null);
-  const onCodeChangeRef = useRef(onCodeChange);
-  const waitingRef = useRef("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const consoleInputRef = useRef<HTMLInputElement>(null);
+  const waitingRef = useRef("");
   const { show } = useToast();
 
   useEffect(() => {
-    onCodeChangeRef.current = onCodeChange;
-  }, [onCodeChange]);
-
-  useEffect(() => {
-    configureLoader();
-    let cancelled = false;
-    let cancelInit: (() => void) | null = null;
-
-    const initPromise = loader.init();
-    initPromise
-      .then((m) => {
-        if (cancelled) return;
-        setActiveMonaco(m);
-      })
-      .catch((err) => {
-        if (err?.type === "cancelation" || err?.msg === "operation is manually canceled") {
-          return;
-        }
-        if (!cancelled) {
-          console.warn("Monaco initialization failed:", err);
-        }
-      });
-
-    cancelInit = () => {
-      cancelled = true;
-      try {
-        (initPromise as any).cancel?.();
-      } catch {}
-    };
-
-    return () => {
-      cancelInit?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!activeMonaco || !editorDivRef.current || editorRef.current) return;
-
-    let editor: any = null;
-    try {
-      editor = activeMonaco.editor.create(editorDivRef.current, {
-        value: initialCode,
-        language,
-        theme: "vs-dark",
-        automaticLayout: true,
-        fontFamily: "'Fira Code', 'JetBrains Mono', Consolas, monospace",
-        fontSize: 14,
-        scrollBeyondLastLine: false,
-        readOnly: false,
-        minimap: { enabled: false },
-        lineNumbers: "on",
-        renderLineHighlight: "gutter",
-        contextmenu: false,
-        padding: { top: 12, bottom: 12 },
-        fontLigatures: true,
-        cursorBlinking: "smooth",
-        cursorSmoothCaretAnimation: "on",
-      });
-    } catch (err) {
-      console.warn("Monaco editor create failed:", err);
-      return;
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
     }
+  }, [code]);
 
-    const sub = editor.onDidChangeModelContent(() => {
-      const code = editor.getValue() || "";
-      onCodeChangeRef.current(code);
-    });
+  const handleCodeChange = (value: string) => {
+    setCode(value);
+    onCodeChange(value);
+  };
 
-    editorRef.current = editor;
-
-    return () => {
-      try {
-        sub.dispose();
-      } catch {}
-      try {
-        editor.dispose();
-      } catch {}
-      if (editorRef.current === editor) {
-        editorRef.current = null;
-      }
-    };
-  }, [activeMonaco, language]);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newValue = code.substring(0, start) + "  " + code.substring(end);
+      setCode(newValue);
+      onCodeChange(newValue);
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + 2;
+      }, 0);
+    }
+  };
 
   const handleRun = useCallback(async () => {
-    const code = editorRef.current?.getValue?.() || initialCode;
     if (!code || code.trim().length === 0) {
       setOutput("Error: No code to run");
       return;
@@ -185,10 +112,9 @@ export function Editor({
     } finally {
       setIsRunning(false);
     }
-  }, [initialCode, language, onRun]);
+  }, [code, language, onRun]);
 
   const submitConsoleInput = useCallback(async () => {
-    const code = editorRef.current?.getValue?.() || initialCode;
     const value = consoleInput.trim();
     setWaitingForInput(false);
     setConsoleInput("");
@@ -224,7 +150,7 @@ export function Editor({
     } finally {
       setIsRunning(false);
     }
-  }, [initialCode, language, onRun, consoleInput]);
+  }, [code, language, onRun, consoleInput]);
 
   const handleCheck = useCallback(async () => {
     if (!testCases || testCases.length === 0) {
@@ -235,7 +161,6 @@ export function Editor({
       return;
     }
 
-    const code = editorRef.current?.getValue?.() || initialCode;
     if (!code || code.trim().length === 0) {
       setOutput("Error: No code to test");
       return;
@@ -303,7 +228,9 @@ export function Editor({
     } finally {
       setIsChecking(false);
     }
-  }, [initialCode, testCases, language, onCheck, show]);
+  }, [code, testCases, language, onCheck, show]);
+
+  const lineCount = code.split("\n").length;
 
   return (
     <div className="editor-container">
@@ -339,7 +266,22 @@ export function Editor({
         </div>
       </div>
 
-      <div ref={editorDivRef} className="h-[280px] sm:h-[350px] w-full" />
+      <div className="flex h-[280px] sm:h-[350px] w-full bg-[#1e1e2e]">
+        <div className="flex-shrink-0 bg-[#181825] text-gray-600 text-right px-2 py-3 font-mono text-xs leading-[1.5] select-none border-r border-[#313244] overflow-hidden">
+          {Array.from({ length: Math.max(lineCount, 20) }, (_, i) => (
+            <div key={i} className="h-[1.5em]">{i + 1}</div>
+          ))}
+        </div>
+        <textarea
+          ref={textareaRef}
+          value={code}
+          onChange={(e) => handleCodeChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          spellCheck={false}
+          className="flex-1 bg-[#1e1e2e] text-[#cdd6f4] font-mono text-sm leading-[1.5] p-3 resize-none focus:outline-none placeholder-gray-600 overflow-auto"
+          placeholder="Type your C++ code here..."
+        />
+      </div>
 
       <div className="bg-[#181825] text-gray-300 px-4 py-3 font-mono text-xs min-h-[100px] max-h-[160px] overflow-auto border-t border-[#313244]">
         <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#313244]">

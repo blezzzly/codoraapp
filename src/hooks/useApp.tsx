@@ -216,8 +216,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           <div className="text-center">
             <div className="relative w-16 h-16 mx-auto mb-3">
               <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-50" />
-              <div className="relative w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-lg">
-                <Icon name="Leaf" size={28} className="text-foreground" />
+              <div className="relative w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-lg overflow-hidden">
+                <img src="/codoralogo.png" alt="Codora" width={64} height={64} className="object-contain" />
               </div>
             </div>
             <h1 className="text-2xl font-bold text-slate-700">

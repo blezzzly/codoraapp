@@ -55,8 +55,8 @@ export default function DesktopNav() {
             aria-expanded={isLangOpen}
             aria-haspopup="listbox"
           >
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-foreground shadow-[0_3px_10px_-2px_rgba(240,192,192,0.6)] transition-transform duration-300 group-hover:scale-105">
-              <Icon name="Leaf" size={18} />
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-[0_3px_10px_-2px_rgba(240,192,192,0.6)] transition-transform duration-300 group-hover:scale-105 overflow-hidden">
+              <img src="/codoralogo.png" alt="Codora" width={36} height={36} className="object-contain" />
             </span>
             <span className="text-lg font-bold tracking-tight text-slate-700">
               codora <span className="text-muted-foreground">{activeLanguage === "cpp" ? "c++" : LANGUAGES.find(l => l.id === activeLanguage)?.label}</span>

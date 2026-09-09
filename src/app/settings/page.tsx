@@ -109,8 +109,8 @@ export default function SettingsPage() {
           <div className="bg-white rounded-3xl p-6 text-foreground shadow-xl shadow-black/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
             <div className="relative text-center">
-              <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-white/40 backdrop-blur-sm flex items-center justify-center">
-                <Icon name="Leaf" size={32} className="text-foreground" />
+              <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-white/40 backdrop-blur-sm flex items-center justify-center overflow-hidden">
+                <img src="/codoralogo.png" alt="Codora" width={64} height={64} className="object-contain" />
               </div>
               <h2 className="text-2xl font-bold mb-1">codora c++</h2>
               <p className="text-foreground/70 text-sm">v1.0.0 - Offline-First PWA</p>

@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   description: "An offline-first PWA for learning C++. Practice coding problems, track your progress, and master C++ at your own pace.",
   applicationName: "codora c++",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/codoralogo.png",
+    shortcut: "/codoralogo.png",
+    apple: "/codoralogo.png",
+  },
   appleWebApp: {
     capable: true,
     title: "codora c++",
@@ -56,6 +61,8 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <script dangerouslySetInnerHTML={{ __html: cancelSuppressionScript }} />
+        <link rel="icon" type="image/png" href="/codoralogo.png" />
+        <link rel="apple-touch-icon" href="/codoralogo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />

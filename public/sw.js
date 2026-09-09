@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cpp-quest-v3';
+const CACHE_NAME = 'cpp-quest-v4';
 const STATIC_ASSETS = [
   '/',
   '/learn',

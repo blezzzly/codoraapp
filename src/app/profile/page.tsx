@@ -61,8 +61,8 @@ export default function ProfilePage() {
             <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
             <div className="relative">
               <div className="flex items-center gap-4 mb-5">
-                <div className="w-16 h-16 rounded-2xl bg-white/40 backdrop-blur-sm flex items-center justify-center shadow-lg">
-                  <Icon name="Leaf" size={30} className="text-foreground" />
+                <div className="w-16 h-16 rounded-2xl bg-white/40 backdrop-blur-sm flex items-center justify-center shadow-lg overflow-hidden">
+                  <img src="/codoralogo.png" alt="Codora" width={64} height={64} className="object-contain" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h2 className="text-xl font-bold">codora c++ Learner</h2>

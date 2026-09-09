@@ -39,8 +39,8 @@ export default function MobileHeader() {
             aria-expanded={isLangOpen}
             aria-haspopup="listbox"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-foreground shadow-[0_3px_10px_-2px_rgba(0,0,0,0.2)] transition-transform duration-300 group-hover:scale-105">
-              <Icon name="Leaf" size={16} />
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-[0_3px_10px_-2px_rgba(0,0,0,0.2)] transition-transform duration-300 group-hover:scale-105 overflow-hidden">
+              <img src="/codoralogo.png" alt="Codora" width={32} height={32} className="object-contain" />
             </span>
             <span className="text-base font-bold tracking-tight text-slate-700">
               codora <span className="text-muted-foreground">{activeLanguage === "cpp" ? "c++" : activeLabel}</span>
