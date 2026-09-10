@@ -6,9 +6,9 @@ import "./globals.css";
 import { ErrorHandler } from "@/components/ErrorHandler";
 
 export const metadata: Metadata = {
-  title: "codora c++ - Learn C++ Through Practice",
-  description: "An offline-first PWA for learning C++. Practice coding problems, track your progress, and master C++ at your own pace.",
-  applicationName: "codora c++",
+  title: "codora - Code, Learn & Practice",
+  description: "A beginner-friendly coding workspace. Write and run C++, Java, and Python, follow structured lessons, solve practice problems, and track your progress.",
+  applicationName: "codora",
   manifest: "/manifest.json",
   icons: {
     icon: "/codoralogo.png",
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "codora c++",
+    title: "codora",
     statusBarStyle: "default",
   },
   formatDetection: {

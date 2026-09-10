@@ -11,11 +11,17 @@ import { useApp } from "@/hooks/useApp";
 import { LANGUAGES, LanguageId } from "@/lib/languages";
 
 const PROFILE_ITEMS = [
-  { href: "/", icon: "Home", label: "Home" },
-  { href: "/learn", icon: "BookOpen", label: "Learn" },
-  { href: "/practice", icon: "Code", label: "Practice" },
+  { href: "/home", icon: "Home", label: "Home" },
   { href: "/community", icon: "MessagesSquare", label: "Community" },
+  { href: "/settings", icon: "Settings", label: "Settings" },
   { href: "/profile", icon: "User", label: "Profile" },
+];
+
+const MAIN_ITEMS = [
+  { href: "/ide", icon: "Terminal", label: "Code" },
+  { href: "/learn", icon: "BookOpen", label: "Learn" },
+  { href: "/practice", icon: "Target", label: "Practice" },
+  { href: "/challenges", icon: "Trophy", label: "Challenges" },
 ];
 
 const LANGUAGES_ORDER: LanguageId[] = ["cpp", "java", "python"];
@@ -43,8 +49,8 @@ export default function DesktopNav() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 hidden bg-white/90 backdrop-blur-md md:block">
-      <div className="mx-auto flex h-16 max-w-2xl items-center justify-between px-4">
-        <div className="relative" ref={langRef}>
+      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-6 px-4">
+        <div className="relative shrink-0" ref={langRef}>
           <button
             onClick={() => setIsLangOpen(!isLangOpen)}
             className="group flex items-center gap-2.5 rounded-xl px-2 -mx-2 py-2 outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 transition-colors hover:bg-background/50"
@@ -100,7 +106,27 @@ export default function DesktopNav() {
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <nav aria-label="Primary" className="hidden md:flex flex-1 items-center justify-center gap-1">
+          {MAIN_ITEMS.map((item) => {
+            const isActive = isNavActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-foreground/60",
+                  isActive ? "bg-background text-foreground" : "text-slate-500 hover:bg-background/60 hover:text-foreground"
+                )}
+                aria-current={isActive ? "page" : undefined}
+              >
+                <Icon name={item.icon} size={16} className={cn(!isActive && "text-slate-400")} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="flex items-center gap-4 shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50">
               <Icon name="Flame" size={14} className="text-orange-500" />

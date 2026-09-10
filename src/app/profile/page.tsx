@@ -47,7 +47,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-700">Profile</h1>
-              <p className="text-sm text-slate-400">The c++ student behind the code</p>
+              <p className="text-sm text-slate-400">The student behind the code</p>
             </div>
           </div>
         </div>
@@ -174,6 +174,29 @@ export default function ProfilePage() {
 
         {/* Quick Links */}
         <div className="animate-fade-in-up opacity-0" style={{ animationDelay: "0.4s", animationFillMode: "forwards" }}>
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <Link
+              href="/home"
+              className="flex items-center justify-center gap-2 px-3 py-3 rounded-2xl bg-white shadow-lg shadow-black/15 text-sm font-semibold text-slate-600 hover:text-foreground hover:shadow-md transition-all duration-300"
+            >
+              <Icon name="Home" size={16} />
+              Home
+            </Link>
+            <Link
+              href="/community"
+              className="flex items-center justify-center gap-2 px-3 py-3 rounded-2xl bg-white shadow-lg shadow-black/15 text-sm font-semibold text-slate-600 hover:text-foreground hover:shadow-md transition-all duration-300"
+            >
+              <Icon name="MessagesSquare" size={16} />
+              Community
+            </Link>
+            <Link
+              href="/progress"
+              className="flex items-center justify-center gap-2 px-3 py-3 rounded-2xl bg-white shadow-lg shadow-black/15 text-sm font-semibold text-slate-600 hover:text-foreground hover:shadow-md transition-all duration-300"
+            >
+              <Icon name="TrendingUp" size={16} />
+              Progress
+            </Link>
+          </div>
           <Link
             href="/settings"
             className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-2xl bg-white shadow-lg shadow-black/15 text-sm font-semibold text-slate-600 hover:text-foreground hover:shadow-md transition-all duration-300"

@@ -112,7 +112,7 @@ export default function SettingsPage() {
               <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-white/40 backdrop-blur-sm flex items-center justify-center overflow-hidden">
                 <img src="/codoralogo.png" alt="Codora" width={64} height={64} className="object-contain" />
               </div>
-              <h2 className="text-2xl font-bold mb-1">codora c++</h2>
+              <h2 className="text-2xl font-bold mb-1">codora</h2>
               <p className="text-foreground/70 text-sm">v1.0.0 - Offline-First PWA</p>
             </div>
           </div>
@@ -153,7 +153,7 @@ export default function SettingsPage() {
         {/* Footer */}
         <div className="text-center py-4 animate-fade-in-up opacity-0" style={{ animationDelay: "0.5s", animationFillMode: "forwards" }}>
           <div className="flex items-center justify-center gap-1 text-sm text-slate-400 mb-1">
-            Made with <Icon name="Heart" size={14} className="text-rose-400" /> for c++ students
+            Made with <Icon name="Heart" size={14} className="text-rose-400" /> for future programmers
           </div>
           <p className="text-xs text-slate-300">
             Learn - Try - Debug - Pass - Progress

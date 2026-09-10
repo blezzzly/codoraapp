@@ -1,6 +1,7 @@
-const CACHE_NAME = 'cpp-quest-v4';
+const CACHE_NAME = 'cpp-quest-v5';
 const STATIC_ASSETS = [
   '/',
+  '/home',
   '/learn',
   '/practice',
   '/challenges',
@@ -9,6 +10,7 @@ const STATIC_ASSETS = [
   '/progress',
   '/profile',
   '/settings',
+  '/community',
   '/manifest.json',
 ];
 

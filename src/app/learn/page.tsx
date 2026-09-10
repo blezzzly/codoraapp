@@ -42,7 +42,76 @@ export default function LearnPage() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-slate-700">Learning Path</h1>
-                <p className="text-sm text-slate-400">Your journey from zero to c++ hero</p>
+                <p className="text-sm text-slate-400">Choose a language and start your journey</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Language Chooser */}
+        <div className="animate-fade-in-up stagger-1">
+          <div className="flex items-center gap-2 mb-3">
+            <Icon name="Layers" size={18} className="text-accent" />
+            <h2 className="text-base font-bold text-slate-700">Choose your language</h2>
+          </div>
+          <div className="space-y-3">
+            <div className="relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 ring-2 ring-primary/40 overflow-hidden">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 shrink-0 rounded-xl bg-secondary flex items-center justify-center">
+                  <Icon name="Code" size={22} className="text-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-700">C++</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-secondary text-[10px] font-bold text-foreground uppercase">Beginner</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">{problems.length} lessons</p>
+                </div>
+                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-background text-xs font-bold text-foreground">
+                  <Icon name="Check" size={14} /> Active
+                </span>
+              </div>
+              <div className="mt-3 h-1.5 bg-secondary rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-secondary rounded-full transition-all duration-1000"
+                  style={{ width: `${Math.round((Object.values(progress).filter(p => p.status === "solved").length / Math.max(problems.length, 1)) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 opacity-70">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 shrink-0 rounded-xl bg-background flex items-center justify-center">
+                  <Icon name="Terminal" size={22} className="text-slate-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-500">Python</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-background text-[10px] font-bold text-slate-400 uppercase">Beginner</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">Coming soon</p>
+                </div>
+                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-background text-xs font-bold text-slate-400">
+                  <Icon name="Record" size={14} /> SOON
+                </span>
+              </div>
+            </div>
+
+            <div className="relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 opacity-70">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 shrink-0 rounded-xl bg-background flex items-center justify-center">
+                  <Icon name="Coffee" size={22} className="text-slate-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-500">Java</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-background text-[10px] font-bold text-slate-400 uppercase">Beginner</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">Coming soon</p>
+                </div>
+                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-background text-xs font-bold text-slate-400">
+                  <Icon name="Record" size={14} /> SOON
+                </span>
               </div>
             </div>
           </div>

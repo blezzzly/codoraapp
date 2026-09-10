@@ -1,7 +1,7 @@
 {
-  "name": "codora c++",
-  "short_name": "codora c++",
-  "description": "Learn C++ through interactive coding challenges. An offline-first PWA for programming students.",
+  "name": "codora - Code, Learn & Practice",
+  "short_name": "codora",
+  "description": "A beginner-friendly coding workspace. Write and run C++, Java, and Python, follow lessons, solve practice problems, and track your progress.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FBF0F0",

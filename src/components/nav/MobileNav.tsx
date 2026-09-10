@@ -21,7 +21,7 @@ export default function MobileNav() {
       <div className="mx-auto w-full max-w-[340px] px-4 pb-4">
         <div className="flex items-center justify-between rounded-[30px] bg-white/95 px-2 py-2.5 shadow-[0_-2px_4px_rgba(74,59,94,0.04),0_14px_30px_-8px_rgba(74,59,94,0.22)] ring-1 ring-black/[0.04]">
           <nav className="flex flex-1 justify-center gap-1">
-            {navItems.slice(0, 4).map((item) => {
+            {navItems.map((item) => {
               const isActive = isNavActive(pathname, item.href);
               return (
                 <Link

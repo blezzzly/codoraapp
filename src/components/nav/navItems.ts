@@ -5,10 +5,11 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { href: "/", icon: "Home", label: "Home" },
+  { href: "/ide", icon: "Terminal", label: "Code" },
   { href: "/learn", icon: "BookOpen", label: "Learn" },
-  { href: "/practice", icon: "Code", label: "Practice" },
-  { href: "/community", icon: "MessagesSquare", label: "Community" },
+  { href: "/practice", icon: "Target", label: "Practice" },
+  { href: "/challenges", icon: "Trophy", label: "Challenges" },
+  { href: "/profile", icon: "User", label: "Profile" },
 ];
 
 export function isNavActive(pathname: string, href: string): boolean {
