@@ -3,18 +3,5 @@
   "devCommand": "next dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["iad1"],
-  "functions": {
-      "src/app/api/run-code/route.ts": {
-        "memory": 2048,
-        "maxDuration": 60,
-        "runtime": "nodejs@20.x"
-      },
-      "src/app/api/check-code/route.ts": {
-        "memory": 2048,
-        "maxDuration": 60,
-        "runtime": "nodejs@20.x"
-      }
-    },
-  "crons": []
+  "regions": ["iad1"]
 }
