@@ -218,6 +218,7 @@ export interface CodeExample {
   code: string;
   explanation: string;
   output: string;
+  language?: "cpp" | "java" | "python";
 }
 
 export type TabType = "dashboard" | "learn" | "practice" | "progress" | "settings";

@@ -85,9 +85,9 @@ export default function IdePage() {
       <div className="bg-white sticky top-14 md:top-16 z-40 backdrop-blur-md bg-white/95">
         <div className="max-w-2xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-2">
-            <Link href="/learn" className="flex items-center gap-2 text-slate-500 hover:text-slate-700 transition-colors">
+            <Link href="/home" className="flex items-center gap-2 text-slate-500 hover:text-slate-700 transition-colors">
               <Icon name="ChevronLeft" size={20} />
-              <span className="text-sm font-medium">Learn</span>
+              <span className="text-sm font-medium">Home</span>
             </Link>
             <div className="flex items-center gap-1.5">
               <div className="relative">

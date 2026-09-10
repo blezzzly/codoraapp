@@ -11,13 +11,15 @@ import { useApp } from "@/hooks/useApp";
 import { LANGUAGES, LanguageId } from "@/lib/languages";
 
 const PROFILE_ITEMS = [
-  { href: "/home", icon: "Home", label: "Home" },
   { href: "/community", icon: "MessagesSquare", label: "Community" },
+  { href: "/library", icon: "Library", label: "Code Library" },
+  { href: "/progress", icon: "TrendingUp", label: "Progress" },
   { href: "/settings", icon: "Settings", label: "Settings" },
   { href: "/profile", icon: "User", label: "Profile" },
 ];
 
 const MAIN_ITEMS = [
+  { href: "/home", icon: "Home", label: "Home" },
   { href: "/ide", icon: "Terminal", label: "Code" },
   { href: "/learn", icon: "BookOpen", label: "Learn" },
   { href: "/practice", icon: "Target", label: "Practice" },

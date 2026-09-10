@@ -66,6 +66,12 @@ const iconMap: Record<string, React.ComponentType<{ className?: string; style?: 
   Coffee: LucideIcons.Coffee,
   Clock: LucideIcons.Clock,
   Search: LucideIcons.Search,
+  Library: LucideIcons.Library,
+  Gauge: LucideIcons.Gauge,
+  BookMarked: LucideIcons.BookMarked,
+  Languages: LucideIcons.Languages,
+  Timer: LucideIcons.Timer,
+  FileCode: LucideIcons.FileCode,
 };
 
 interface IconProps {

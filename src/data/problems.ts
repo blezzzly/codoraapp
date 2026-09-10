@@ -1,4 +1,5 @@
-﻿import type { Problem, Lesson, World } from "@/types";
+﻿import type { Problem, World } from "@/types";
+import { LanguageId, getLanguageConfig } from "@/lib/languages";
 
 export const worlds: World[] = [
   {
@@ -489,4 +490,35 @@ export function getProblemById(id: string): Problem | undefined {
 
 export function getProblemsByWorld(worldId: string): Problem[] {
   return problems.filter((p) => p.world === worldId);
+}
+
+export function getStarterCode(problem: Problem, langId: LanguageId): string {
+  const config = getLanguageConfig(langId);
+
+  if (langId === "cpp") {
+    return problem.starterCode || config.template;
+  }
+
+  if (langId === "java") {
+    return `import java.util.Scanner;
+
+class Main {
+  public static void main(String[] args) {
+    Scanner sc = new Scanner(System.in);
+
+    // TODO: ${problem.title}
+    // Input: ${problem.input}
+    // Output: ${problem.output}
+    // Expected output: ${problem.example.output}
+  }
+}`;
+  }
+
+  return `# ${problem.title}
+# Input: ${problem.input}
+# Output: ${problem.output}
+# Expected output: ${problem.example.output}
+
+# Remove the line below and type your solution here
+print("Type your solution here")`;
 }

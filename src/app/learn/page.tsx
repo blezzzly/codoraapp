@@ -1,17 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/hooks/useApp";
 import { Icon } from "@/components/ui/icon";
+import { setDraft } from "@/lib/ideDraft";
+import { getLanguageConfig, LanguageId } from "@/lib/languages";
 import { useState, useEffect } from "react";
 
 export default function LearnPage() {
-  const { worlds, problems, progress } = useApp();
+  const { worlds, problems, progress, language, setLanguage } = useApp();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const openLanguage = (langId: LanguageId) => {
+    setLanguage(langId);
+    setDraft(getLanguageConfig(langId).template, langId);
+    router.push("/ide");
+  };
 
   if (!mounted) {
     return (
@@ -65,7 +75,7 @@ export default function LearnPage() {
                     <h3 className="font-bold text-slate-700">C++</h3>
                     <span className="px-2 py-0.5 rounded-full bg-secondary text-[10px] font-bold text-foreground uppercase">Beginner</span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">{problems.length} lessons</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{problems.length} lessons · full roadmap</p>
                 </div>
                 <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-background text-xs font-bold text-foreground">
                   <Icon name="Check" size={14} /> Active
@@ -79,41 +89,47 @@ export default function LearnPage() {
               </div>
             </div>
 
-            <div className="relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 opacity-70">
+            <button
+              onClick={() => openLanguage("python")}
+              className="w-full relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg group"
+            >
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-background flex items-center justify-center">
-                  <Icon name="Terminal" size={22} className="text-slate-400" />
+                <div className="w-12 h-12 shrink-0 rounded-xl bg-background flex items-center justify-center group-hover:bg-secondary transition-colors duration-300">
+                  <Icon name="Terminal" size={22} className="text-slate-400 group-hover:text-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-slate-500">Python</h3>
+                    <h3 className="font-bold text-slate-700">Python</h3>
                     <span className="px-2 py-0.5 rounded-full bg-background text-[10px] font-bold text-slate-400 uppercase">Beginner</span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">Coming soon</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Lessons coming · code in the IDE now</p>
                 </div>
-                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-background text-xs font-bold text-slate-400">
-                  <Icon name="Record" size={14} /> SOON
+                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-secondary text-xs font-bold text-slate-500 group-hover:text-foreground">
+                  <Icon name="Terminal" size={14} /> Open IDE
                 </span>
               </div>
-            </div>
+            </button>
 
-            <div className="relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 opacity-70">
+            <button
+              onClick={() => openLanguage("java")}
+              className="w-full relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg group"
+            >
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-background flex items-center justify-center">
-                  <Icon name="Coffee" size={22} className="text-slate-400" />
+                <div className="w-12 h-12 shrink-0 rounded-xl bg-background flex items-center justify-center group-hover:bg-secondary transition-colors duration-300">
+                  <Icon name="Coffee" size={22} className="text-slate-400 group-hover:text-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-slate-500">Java</h3>
+                    <h3 className="font-bold text-slate-700">Java</h3>
                     <span className="px-2 py-0.5 rounded-full bg-background text-[10px] font-bold text-slate-400 uppercase">Beginner</span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">Coming soon</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Lessons coming · code in the IDE now</p>
                 </div>
-                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-background text-xs font-bold text-slate-400">
-                  <Icon name="Record" size={14} /> SOON
+                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-secondary text-xs font-bold text-slate-500 group-hover:text-foreground">
+                  <Icon name="Coffee" size={14} /> Open IDE
                 </span>
               </div>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -185,7 +201,7 @@ export default function LearnPage() {
 
                       {/* Lesson Card */}
                       <Link
-                        href={isLocked ? "#" : `/learn/${problem.id}`}
+                        href={isLocked ? "/learn" : `/learn/${problem.id}`}
                         className={`block ${isLocked ? "pointer-events-none" : ""}`}
                       >
                         <div 

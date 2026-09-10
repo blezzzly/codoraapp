@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cpp-quest-v5';
+const CACHE_NAME = 'codora-workspace-v6';
 const STATIC_ASSETS = [
   '/',
   '/home',

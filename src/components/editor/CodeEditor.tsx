@@ -41,12 +41,23 @@ export function Editor({
   const waitingRef = useRef("");
   const { show } = useToast();
 
+  const configLabel =
+    language === "java"
+      ? "Java"
+      : language === "python"
+        ? "Python"
+        : "C++";
+
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
     }
   }, [code]);
+
+  useEffect(() => {
+    setCode(initialCode);
+  }, [initialCode]);
 
   const handleCodeChange = (value: string) => {
     setCode(value);
@@ -279,7 +290,7 @@ export function Editor({
           onKeyDown={handleKeyDown}
           spellCheck={false}
           className="flex-1 bg-[#1e1e2e] text-[#cdd6f4] font-mono text-sm leading-[1.5] p-3 resize-none focus:outline-none placeholder-gray-600 overflow-auto"
-          placeholder="Type your C++ code here..."
+          placeholder={`Type your ${configLabel} code here...`}
         />
       </div>
 

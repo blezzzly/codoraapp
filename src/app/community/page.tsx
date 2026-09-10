@@ -4,20 +4,41 @@ const communityCards = [
   {
     icon: "Lightbulb",
     title: "Code Tips",
-    description: "Share the small tricks that make C++ code cleaner and faster.",
+    description: "Share the small tricks that make your code cleaner and faster — like using std::lower_bound or one-liner comprehensions.",
     color: "bg-amber-100 text-amber-600",
   },
   {
     icon: "Users",
     title: "Study Groups",
-    description: "Find classmates and form groups for a subject or a topic.",
+    description: "Find classmates and form groups for a subject or a topic. Compare notes and debug together.",
     color: "bg-secondary text-foreground",
   },
   {
     icon: "Award",
-    title: "CITCS Challenges",
-    description: "Weekly mini-contests built around your current lessons.",
+    title: "Weekly Challenges",
+    description: "Mini-contests built around your current lessons. Compete for XP and bragging rights.",
     color: "bg-rose-100 text-rose-600",
+  },
+];
+
+const discussionPreview = [
+  {
+    icon: "MessagesSquare",
+    title: "Hot topics this week",
+    items: [
+      "Why is my for-loop skipping the last number?",
+      "Best way to read unknown amounts of input",
+      "Debugging with print / cout — still valid?",
+    ],
+  },
+  {
+    icon: "Users",
+    title: "Active study groups",
+    items: [
+      "C++ Basics · 12 members",
+      "Java Beginners · 8 members",
+      "Python Loops · 15 members",
+    ],
   },
 ];
 
@@ -56,14 +77,14 @@ export default function CommunityPage() {
             <div>
               <h2 className="font-bold text-foreground">Community is on the way</h2>
               <p className="text-sm text-foreground/70">
-                The place where CITCS students talk code.
+                The place where students talk code.
               </p>
             </div>
           </div>
           <p className="mt-4 text-sm leading-relaxed text-foreground/80">
             Soon you&apos;ll be able to discuss problems, share solutions, form study groups,
-            and join weekly C++ challenges with your classmates. While we build it,
-            keep grinding on your lessons and practice sets.
+            and join weekly challenges with your classmates in whatever language you&apos;re
+            learning. While we build it, keep grinding on your lessons and practice sets.
           </p>
         </div>
 
@@ -83,6 +104,31 @@ export default function CommunityPage() {
               <p className="mt-1 text-sm leading-relaxed text-slate-400">
                 {card.description}
               </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          {discussionPreview.map((section) => (
+            <div
+              key={section.title}
+              className="animate-fade-in-up opacity-0 rounded-3xl bg-white p-5 shadow-lg shadow-black/15"
+              style={{ animationFillMode: "forwards", animationDelay: "200ms" }}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-background text-accent">
+                  <Icon name={section.icon} size={18} />
+                </span>
+                <h3 className="font-bold text-slate-700">{section.title}</h3>
+              </div>
+              <ul className="space-y-2.5">
+                {section.items.map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-sm text-slate-500">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
           ))}
         </div>

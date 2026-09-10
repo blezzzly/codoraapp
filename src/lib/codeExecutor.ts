@@ -105,11 +105,15 @@ export async function writeSource(code: string, language: LanguageId = "cpp"): P
 }> {
   const tempDir = `remote-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const config = getLanguageConfig(language);
-  const ext = language === "cpp" ? "cpp" : language;
+  const ext: Record<LanguageId, string> = {
+    cpp: "cpp",
+    java: "java",
+    python: "py",
+  };
   sourceCache.set(tempDir, { code, language });
   return {
     tempDir,
-    sourceFile: path.join(tempDir, `main.${ext}`),
+    sourceFile: path.join(tempDir, `main.${ext[language as LanguageId] || ext.cpp}`),
     executablePath: path.join(tempDir, "main"),
   };
 }

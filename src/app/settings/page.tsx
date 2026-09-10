@@ -2,11 +2,12 @@
 
 import { Icon } from "@/components/ui/icon";
 import { useApp } from "@/hooks/useApp";
+import { LANGUAGES, LanguageId } from "@/lib/languages";
 import { useState } from "react";
 import * as db from "@/lib/database";
 
 export default function SettingsPage() {
-  const { profile, refreshData, updateDailyGoal } = useApp();
+  const { profile, refreshData, updateDailyGoal, language, setLanguage } = useApp();
   const [showConfirm, setShowConfirm] = useState(false);
 
   const handleResetData = async () => {
@@ -46,6 +47,27 @@ export default function SettingsPage() {
               Preferences
             </h3>
             <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-medium text-slate-700 text-sm">Default Language</p>
+                  <p className="text-xs text-slate-400">Used by the IDE and practice problems</p>
+                </div>
+                <div className="flex gap-1">
+                  {(["cpp", "java", "python"] as LanguageId[]).map((langId) => (
+                    <button
+                      key={langId}
+                      onClick={() => setLanguage(langId)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 btn-press ${
+                        language === langId
+                          ? "bg-secondary text-foreground shadow-md"
+                          : "bg-background text-slate-600 hover:bg-secondary"
+                      }`}
+                    >
+                      {LANGUAGES[langId].label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex justify-between items-center">
                 <div>
                   <p className="font-medium text-slate-700 text-sm">Daily Goal</p>
@@ -124,8 +146,8 @@ export default function SettingsPage() {
             <div className="w-10 h-10 mb-2 rounded-xl bg-background flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
               <Icon name="Wifi" size={20} className="text-accent" />
             </div>
-            <p className="font-semibold text-slate-700 text-sm">Works Offline</p>
-            <p className="text-xs text-slate-400">No internet needed</p>
+            <p className="font-semibold text-slate-700 text-sm">See It Run</p>
+            <p className="text-xs text-slate-400">Instant live output</p>
           </div>
           <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s", animationFillMode: "forwards" }}>
             <div className="w-10 h-10 mb-2 rounded-xl bg-background flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
@@ -145,8 +167,8 @@ export default function SettingsPage() {
             <div className="w-10 h-10 mb-2 rounded-xl bg-amber-50 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
               <Icon name="Cpu" size={20} className="text-amber-500" />
             </div>
-            <p className="font-semibold text-slate-700 text-sm">C++ Compiler</p>
-            <p className="text-xs text-slate-400">In your browser</p>
+            <p className="font-semibold text-slate-700 text-sm">C++ · Java · Python</p>
+            <p className="text-xs text-slate-400">Run code in the cloud</p>
           </div>
         </div>
 

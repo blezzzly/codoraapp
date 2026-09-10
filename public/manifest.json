@@ -68,7 +68,7 @@
     {
       "name": "Continue Learning",
       "short_name": "Learn",
-      "description": "Continue your C++ learning journey",
+      "description": "Continue your coding journey",
       "url": "/learn",
       "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
     },

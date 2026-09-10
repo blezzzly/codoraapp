@@ -5,17 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useApp } from "@/hooks/useApp";
-import { getProblemById } from "@/data/problems";
+import { getProblemById, getStarterCode } from "@/data/problems";
+import { getLanguageConfig, LanguageId } from "@/lib/languages";
 import { Icon } from "@/components/ui/icon";
-
-const DEFAULT_TEMPLATE = `#include <iostream>
-using namespace std;
-
-int main() {
-
-//start your program here
-
-}`;
 
 const CodeEditor = dynamic(
   () => import("@/components/editor/CodeEditor").then(mod => mod.Editor),
@@ -79,7 +71,8 @@ export default function ProblemPage() {
   const params = useParams();
   const router = useRouter();
   const problemId = params?.problemId as string;
-  const { updateProgress, problems } = useApp();
+  const { updateProgress, problems, language } = useApp();
+  const activeLang = getLanguageConfig(language);
   
   const [code, setCode] = useState<string>("");
   const [showHint, setShowHint] = useState<number>(0);
@@ -91,10 +84,14 @@ export default function ProblemPage() {
 
   useEffect(() => {
     setMounted(true);
-    if (problem) {
-      setCode(DEFAULT_TEMPLATE);
+    if (!problem) {
+      router.replace("/practice");
+      return;
     }
-  }, [problem]);
+    if (problem) {
+      setCode(getStarterCode(problem, activeLang.id));
+    }
+  }, [problem, activeLang, router]);
 
   if (!mounted || !problem) {
     return (
@@ -281,7 +278,13 @@ export default function ProblemPage() {
           <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
             <div className="px-4 py-3 border-b-2 border-secondary flex items-center gap-2">
               <Icon name="Code2" size={16} className="text-accent" />
-              <span className="text-sm font-semibold text-slate-700">{problem.filename}</span>
+              <span className="text-sm font-semibold text-slate-700">
+                {activeLang.id === "cpp"
+                  ? problem.filename
+                  : activeLang.id === "java"
+                    ? "Main.java"
+                    : "main.py"}
+              </span>
             </div>
             <CodeEditor
               initialCode={code}
@@ -290,6 +293,7 @@ export default function ProblemPage() {
               onCheck={handleCheck}
               problemId={problem.id}
               testCases={problem.testCases}
+              language={activeLang.id}
             />
           </div>
         </div>

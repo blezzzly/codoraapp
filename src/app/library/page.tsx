@@ -7,7 +7,7 @@ import { Icon } from "@/components/ui/icon";
 import { codeExamplesByCategory } from "@/content";
 import { setDraft } from "@/lib/ideDraft";
 
-function CodeDisplay({ code }: { code: string }) {
+function CodeDisplay({ code, language = "cpp" }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false);
   const lines = code.split("\n");
 
@@ -26,7 +26,7 @@ function CodeDisplay({ code }: { code: string }) {
             <div className="w-3 h-3 rounded-full bg-amber-400" />
             <div className="w-3 h-3 rounded-full bg-accent" />
           </div>
-          <span className="text-xs text-gray-400 ml-2">CPP</span>
+          <span className="text-xs text-gray-400 ml-2">{language.toUpperCase()}</span>
         </div>
         <button
           onClick={handleCopy}
@@ -64,6 +64,29 @@ export default function LibraryPage() {
     }
   }, [groups]);
 
+  const runExample = async (id: string, code: string, lang: string) => {
+    setRunning(id);
+    setOutput((prev) => ({ ...prev, [id]: "Running..." }));
+    try {
+      const res = await fetch("/api/run-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, language: lang }),
+      });
+      const result = await res.json();
+      setOutput((prev) => ({ ...prev, [id]: result.output || "(no output)" }));
+    } catch {
+      setOutput((prev) => ({ ...prev, [id]: "Error running example" }));
+    } finally {
+      setRunning(null);
+    }
+  };
+
+  const openInIde = (code: string, lang: string) => {
+    setDraft(code, lang);
+    router.push("/ide");
+  };
+
   if (!mounted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -76,29 +99,6 @@ export default function LibraryPage() {
       </div>
     );
   }
-
-  const runExample = async (id: string, code: string) => {
-    setRunning(id);
-    setOutput((prev) => ({ ...prev, [id]: "Running..." }));
-    try {
-      const res = await fetch("/api/run-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language: "cpp" }),
-      });
-      const result = await res.json();
-      setOutput((prev) => ({ ...prev, [id]: result.output || "(no output)" }));
-    } catch {
-      setOutput((prev) => ({ ...prev, [id]: "Error running example" }));
-    } finally {
-      setRunning(null);
-    }
-  };
-
-  const openInIde = (code: string) => {
-    setDraft(code);
-    router.push("/ide");
-  };
 
   return (
     <div className="min-h-screen pb-24">
@@ -136,11 +136,11 @@ export default function LibraryPage() {
                     {isOpen && (
                       <div className="px-4 pb-4">
                         <p className="text-sm text-slate-500">{example.explanation}</p>
-                        <CodeDisplay code={example.code} />
+                        <CodeDisplay code={example.code} language={example.language || "cpp"} />
 
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <button
-                            onClick={() => runExample(example.id, example.code)}
+                            onClick={() => runExample(example.id, example.code, example.language || "cpp")}
                             disabled={running === example.id}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-colors disabled:opacity-60 shadow-lg"
                           >
@@ -148,7 +148,7 @@ export default function LibraryPage() {
                             {running === example.id ? "Running..." : "Run Code"}
                           </button>
                           <button
-                            onClick={() => openInIde(example.code)}
+                            onClick={() => openInIde(example.code, example.language || "cpp")}
                             className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-secondary text-foreground text-xs font-bold hover:bg-primary transition-colors shadow-lg"
                           >
                             <Icon name="Terminal" size={14} />

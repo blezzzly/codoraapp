@@ -123,7 +123,7 @@ return (
             <div className="w-11 h-11 mx-auto mb-2 rounded-xl bg-amber-50 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
               <Icon name="Trophy" size={20} className="text-amber-500" />
             </div>
-            <p className="text-2xl font-bold text-slate-700 tabular-nums">{animatedSolved}</p>
+            <p className="text-2xl font-bold text-slate-700 tabular-nums">{animatedSolved}<span className="text-base text-slate-400 font-semibold">/{totalProblems}</span></p>
             <p className="text-xs text-slate-400 font-medium">Solved</p>
           </div>
           <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300 animate-fade-in-up stagger-2 opacity-0" style={{ animationFillMode: "forwards" }}>

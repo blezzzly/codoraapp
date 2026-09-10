@@ -86,7 +86,7 @@ export default function ProgressPage() {
                   </div>
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-xl font-bold">codora c++ Learner</h2>
+                  <h2 className="text-xl font-bold">codora Learner</h2>
                   <p className="text-foreground/70 text-sm">Member since {formatDate(profile.joinedAt)}</p>
                 </div>
               </div>
@@ -131,7 +131,7 @@ export default function ProgressPage() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="font-bold text-slate-700">Overall Mastery</h3>
-                <p className="text-xs text-slate-400">Your c++ knowledge level</p>
+                <p className="text-xs text-slate-400">Your overall coding knowledge</p>
               </div>
               <div className="text-3xl font-bold text-accent tabular-nums">{completionRate}%</div>
             </div>

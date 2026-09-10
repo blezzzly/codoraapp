@@ -17,13 +17,16 @@ function getDifficultyColor(difficulty: string): { bg: string; text: string; dot
 }
 
 export default function PracticePage() {
-  const { problems, progress, worlds } = useApp();
+  const { problems, progress, worlds, language } = useApp();
   const [mounted, setMounted] = useState(false);
   const [filter, setFilter] = useState<string>("all");
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const activeLangLabel =
+    language === "java" ? "Java" : language === "python" ? "Python" : "C++";
 
   const solvedCount = Object.values(progress).filter(p => p.status === "solved").length;
   const totalXP = Object.values(progress)
@@ -80,6 +83,12 @@ export default function PracticePage() {
               <span className="text-sm font-bold text-amber-600 tabular-nums">{totalXP}</span>
               <span className="text-xs text-amber-500">XP</span>
             </div>
+          </div>
+          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-primary">
+            <Icon name={language === "java" ? "Coffee" : language === "python" ? "Terminal" : "Code"} size={14} className="text-accent" />
+            <span className="text-xs font-semibold text-slate-500">
+              Solving in <span className="text-foreground">{activeLangLabel}</span>
+            </span>
           </div>
         </div>
       </div>

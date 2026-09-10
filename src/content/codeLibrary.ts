@@ -269,6 +269,102 @@ int main() {
     explanation: "Dog is the blueprint; buddy is an object made from it.",
     output: "Woof!",
   },
+  {
+    id: "lib-java-hello",
+    category: "introduction",
+    title: "Java: Hello, World!",
+    description: "The classic first program in Java.",
+    code: `class Main {
+  public static void main(String[] args) {
+    System.out.println("Hello, World!");
+  }
+}`,
+    explanation: "main is the entry point. System.out.println prints a line.",
+    output: "Hello, World!",
+    language: "java",
+  },
+  {
+    id: "lib-java-sum",
+    category: "input-output",
+    title: "Java: Read Two Numbers",
+    description: "Read two integers with Scanner and print their sum.",
+    code: `import java.util.Scanner;
+
+class Main {
+  public static void main(String[] args) {
+    Scanner sc = new Scanner(System.in);
+    int a = sc.nextInt();
+    int b = sc.nextInt();
+    System.out.println(a + b);
+  }
+}`,
+    explanation: "Scanner reads typed input. nextInt() grabs the next integer.",
+    output: "With input '3 4' the output is 7",
+    language: "java",
+  },
+  {
+    id: "lib-java-loop",
+    category: "for-loops",
+    title: "Java: Count to 5",
+    description: "A for loop that prints numbers 1 to 5.",
+    code: `class Main {
+  public static void main(String[] args) {
+    for (int i = 1; i <= 5; i++) {
+      System.out.print(i + " ");
+    }
+  }
+}`,
+    explanation: "The loop runs i from 1 to 5, printing each value on one line.",
+    output: "1 2 3 4 5 ",
+    language: "java",
+  },
+  {
+    id: "lib-py-hello",
+    category: "introduction",
+    title: "Python: Hello, World!",
+    description: "The easiest way to start in Python.",
+    code: `print("Hello, World!")`,
+    explanation: "print() writes text to the screen. One line, done.",
+    output: "Hello, World!",
+    language: "python",
+  },
+  {
+    id: "lib-py-sum",
+    category: "input-output",
+    title: "Python: Read Two Numbers",
+    description: "Turn keyboard input into integers and sum them.",
+    code: `a = int(input("Enter first number: "))
+b = int(input("Enter second number: "))
+print(a + b)`,
+    explanation: "input() reads text; int() converts it to a number.",
+    output: "With input 3 and 4 the output is 7",
+    language: "python",
+  },
+  {
+    id: "lib-py-even",
+    category: "conditions",
+    title: "Python: Even or Odd",
+    description: "Check a number with the % operator.",
+    code: `n = int(input())
+if n % 2 == 0:
+    print("Even")
+else:
+    print("Odd")`,
+    explanation: "n % 2 is 0 for even numbers, 1 for odd numbers.",
+    output: "With input 10 the output is Even",
+    language: "python",
+  },
+  {
+    id: "lib-py-loop",
+    category: "for-loops",
+    title: "Python: Count to 5",
+    description: "Loop from 1 to 5 and print each number.",
+    code: `for i in range(1, 6):
+    print(i)`,
+    explanation: "range(1, 6) produces 1, 2, 3, 4, 5.",
+    output: "1\\n2\\n3\\n4\\n5",
+    language: "python",
+  },
 ];
 
 const categoryLabels: Record<Topic, string> = {

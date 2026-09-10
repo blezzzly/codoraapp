@@ -65,7 +65,7 @@ export default function ProfilePage() {
                   <img src="/codoralogo.png" alt="Codora" width={64} height={64} className="object-contain" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-bold">codora c++ Learner</h2>
+                  <h2 className="text-xl font-bold">codora Learner</h2>
                   <p className="text-foreground/70 text-sm">Member since {formatDate(profile.joinedAt)}</p>
                 </div>
                 <div className="w-16 h-16 shrink-0 rounded-2xl bg-white/40 backdrop-blur-sm flex items-center justify-center shadow-lg">

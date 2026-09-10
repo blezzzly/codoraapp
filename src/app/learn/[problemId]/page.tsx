@@ -20,7 +20,7 @@ function getDifficultyColor(difficulty: string) {
   return colors[difficulty] || colors.beginner;
 }
 
-function CodeBlock({ code, onRun }: { code: string; onRun?: () => void }) {
+function CodeBlock({ code, onRun, language = "cpp" }: { code: string; onRun?: () => void; language?: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -40,7 +40,7 @@ function CodeBlock({ code, onRun }: { code: string; onRun?: () => void }) {
             <div className="w-3 h-3 rounded-full bg-amber-400" />
             <div className="w-3 h-3 rounded-full bg-accent" />
           </div>
-          <span className="text-xs text-gray-400 ml-2">CPP</span>
+          <span className="text-xs text-gray-400 ml-2">{language.toUpperCase()}</span>
         </div>
         <div className="flex items-center gap-3">
           {onRun && (
@@ -146,7 +146,7 @@ function MiniQuiz({ questions }: { questions: QuizQuestion[] }) {
 export default function LessonPage() {
   const params = useParams();
   const problemId = params?.problemId as string;
-  const { progress } = useApp();
+  const { progress, language } = useApp();
   const [mounted, setMounted] = useState(false);
 
   const problem = getProblemById(problemId);
@@ -182,7 +182,7 @@ export default function LessonPage() {
       const res = await fetch("/api/run-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: content.example.code, language: "cpp" }),
+        body: JSON.stringify({ code: content.example.code, language }),
       });
       const result = await res.json();
       setExampleOutput(result.output || "(no output)");
@@ -298,7 +298,7 @@ export default function LessonPage() {
               Example
             </h3>
             <p className="text-sm text-slate-500 mb-3">{content.example.explanation}</p>
-            <CodeBlock code={content.example.code} onRun={runExample} />
+            <CodeBlock code={content.example.code} onRun={runExample} language={language} />
             {runningExample && (
               <div className="mt-3 flex items-center gap-2 text-sm text-slate-500">
                 <div className="w-3 h-3 rounded-full bg-secondary animate-pulse" />

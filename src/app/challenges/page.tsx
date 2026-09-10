@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/hooks/useApp";
 import { Icon } from "@/components/ui/icon";
 import { challenges, currentChallenge } from "@/content";
+import { setDraft } from "@/lib/ideDraft";
+import type { Challenge } from "@/types";
 
 function getDifficultyColor(difficulty: string) {
   const colors: Record<string, { bg: string; text: string }> = {
@@ -18,7 +20,8 @@ function getDifficultyColor(difficulty: string) {
 }
 
 export default function ChallengesPage() {
-  const { progress } = useApp();
+  const { progress, language } = useApp();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -27,6 +30,11 @@ export default function ChallengesPage() {
 
   const active = currentChallenge();
   const solvedCount = Object.values(progress).filter((p) => p.status === "solved").length;
+
+  const startChallenge = (challenge: Challenge) => {
+    setDraft(challenge.starterCode, language);
+    router.push("/ide");
+  };
 
   if (!mounted) {
     return (
@@ -83,13 +91,13 @@ export default function ChallengesPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Link
-                    href="/practice"
+                  <button
+                    onClick={() => startChallenge(active)}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-foreground text-sm font-bold shadow-lg transition-all duration-300 hover:gap-3 btn-press"
                   >
                     <Icon name="Code" size={16} />
                     Solve in IDE
-                  </Link>
+                  </button>
                 </div>
               </div>
             </div>
@@ -130,17 +138,19 @@ export default function ChallengesPage() {
                       <Icon name="Zap" size={12} />
                       +{challenge.xpReward} XP
                     </span>
-                    <Link
-                      href={challenge.active ? "/practice" : "#"}
-                      className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all ${
-                        challenge.active
-                          ? "bg-secondary text-foreground hover:bg-primary shadow-lg"
-                          : "bg-slate-100 text-slate-400 cursor-default"
-                      }`}
-                    >
-                      {challenge.active ? "Take Challenge" : challenge.label || "Coming Soon"}
-                      {challenge.active && <Icon name="ChevronRight" size={14} />}
-                    </Link>
+                    {challenge.active ? (
+                      <button
+                        onClick={() => startChallenge(challenge)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all bg-secondary text-foreground hover:bg-primary shadow-lg btn-press"
+                      >
+                        Take Challenge
+                        <Icon name="ChevronRight" size={14} />
+                      </button>
+                    ) : (
+                      <span className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold bg-slate-100 text-slate-400 cursor-default">
+                        {challenge.label || "Coming Soon"}
+                      </span>
+                    )}
                   </div>
                 </div>
               );
