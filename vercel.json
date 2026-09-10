@@ -8,12 +8,12 @@
       "src/app/api/run-code/route.ts": {
         "memory": 2048,
         "maxDuration": 60,
-        "runtime": "nodejs20.x"
+        "runtime": "nodejs@20.x"
       },
       "src/app/api/check-code/route.ts": {
         "memory": 2048,
         "maxDuration": 60,
-        "runtime": "nodejs20.x"
+        "runtime": "nodejs@20.x"
       }
     },
   "crons": []
