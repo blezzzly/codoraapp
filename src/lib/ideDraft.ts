@@ -1,3 +1,5 @@
+import { LANGUAGES, LanguageId } from "@/lib/languages";
+
 export interface SavedProgram {
   id: string;
   name: string;
@@ -7,6 +9,10 @@ export interface SavedProgram {
 
 const DRAFT_KEY = "codora_ide_draft";
 const SAVED_KEY = "codora_ide_saved";
+
+function langDraftKey(language: string): string {
+  return `codora_ide_draft_${language}`;
+}
 
 function safeGet<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -34,12 +40,16 @@ int main() {
 
 }`;
 
-export function getDraft(): string {
-  return safeGet<string>(DRAFT_KEY, DEFAULT_IDE_CODE);
+export function getDraft(language: string = "cpp"): string {
+  const perLang = safeGet<string>(langDraftKey(language), "");
+  if (perLang) return perLang;
+  if (language === "cpp") return safeGet<string>(DRAFT_KEY, DEFAULT_IDE_CODE);
+  return LANGUAGES[language as LanguageId]?.template ?? DEFAULT_IDE_CODE;
 }
 
-export function setDraft(code: string): void {
-  safeSet(DRAFT_KEY, code);
+export function setDraft(code: string, language: string = "cpp"): void {
+  safeSet(langDraftKey(language), code);
+  if (language === "cpp") safeSet(DRAFT_KEY, code);
 }
 
 export function getSavedPrograms(): SavedProgram[] {

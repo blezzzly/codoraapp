@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { isNavActive } from "@/components/nav/navItems";
 import HamburgerIcon from "@/components/nav/HamburgerIcon";
 import { useApp } from "@/hooks/useApp";
+import { LANGUAGES, LanguageId } from "@/lib/languages";
 
 const PROFILE_ITEMS = [
   { href: "/", icon: "Home", label: "Home" },
@@ -17,18 +18,13 @@ const PROFILE_ITEMS = [
   { href: "/profile", icon: "User", label: "Profile" },
 ];
 
-const LANGUAGES = [
-  { id: "cpp", label: "C++", icon: "Code", available: true },
-  { id: "java", label: "Java", icon: "Coffee", available: false },
-  { id: "python", label: "Python", icon: "Terminal", available: false },
-];
+const LANGUAGES_ORDER: LanguageId[] = ["cpp", "java", "python"];
 
 export default function DesktopNav() {
   const pathname = usePathname();
-  const { profile } = useApp();
+  const { profile, language: activeLanguage, setLanguage } = useApp();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isLangOpen, setIsLangOpen] = useState(false);
-  const [activeLanguage, setActiveLanguage] = useState("cpp");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const langRef = useRef<HTMLDivElement>(null);
 
@@ -59,7 +55,7 @@ export default function DesktopNav() {
               <img src="/codoralogo.png" alt="Codora" width={36} height={36} className="object-contain" />
             </span>
             <span className="text-lg font-bold tracking-tight text-slate-700">
-              codora <span className="text-muted-foreground">{activeLanguage === "cpp" ? "c++" : LANGUAGES.find(l => l.id === activeLanguage)?.label}</span>
+              codora <span className="text-muted-foreground">{activeLanguage === "cpp" ? "c++" : LANGUAGES[activeLanguage as LanguageId]?.label}</span>
             </span>
             <Icon
               name="ChevronDown"
@@ -77,33 +73,26 @@ export default function DesktopNav() {
               <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Choose Language
               </p>
-              {LANGUAGES.map((lang) => {
-                const isActive = lang.id === activeLanguage;
+              {LANGUAGES_ORDER.map((langId) => {
+                const lang = LANGUAGES[langId];
+                const isActive = langId === activeLanguage;
                 return (
                   <button
                     key={lang.id}
-                    disabled={!lang.available}
                     onClick={() => {
-                      setActiveLanguage(lang.id);
+                      setLanguage(langId);
                       setIsLangOpen(false);
                     }}
                     className={cn(
                       "flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors",
                       isActive
                         ? "bg-background text-foreground"
-                        : lang.available
-                        ? "text-slate-600 hover:bg-background hover:text-foreground"
-                        : "text-slate-400 cursor-default"
+                        : "text-slate-600 hover:bg-background hover:text-foreground"
                     )}
                   >
-                    <Icon name={lang.icon} size={18} className={cn(isActive && "text-foreground")} />
+                    <Icon name={lang.icon} size={18} className={cn(!isActive && "text-slate-400")} />
                     {lang.label}
                     {isActive && <Icon name="Check" size={16} className="ml-auto text-foreground" />}
-                    {!isActive && !lang.available && (
-                      <span className="ml-auto px-2 py-0.5 rounded-full bg-background text-[10px] font-bold text-foreground">
-                        SOON
-                      </span>
-                    )}
                   </button>
                 );
               })}

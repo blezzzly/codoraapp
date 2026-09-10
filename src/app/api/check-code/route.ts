@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeSource, compile, runWithInput, normalizeOutput, cleanupDir, TestCaseResult } from "@/lib/codeExecutor";
 import { validateCode, sanitizeError } from "@/lib/codeValidation";
 import { explainCompileError } from "@/lib/explainError";
+import { getLanguageConfig } from "@/lib/languages";
 
 interface TestCase {
   input: string;
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ compileError: testCheck.error, success: false });
     }
 
-    const { tempDir, sourceFile, executablePath } = await writeSource(code);
+    const { tempDir, sourceFile, executablePath } = await writeSource(code, getLanguageConfig(language).id);
 
     try {
       await compile(sourceFile, executablePath);

@@ -1,4 +1,5 @@
 import * as path from "path";
+import { getLanguageConfig, LanguageId } from "@/lib/languages";
 
 export const COMPILE_TIMEOUT_MS = 10000;
 export const RUN_TIMEOUT_MS = 5000;
@@ -13,7 +14,6 @@ export interface TestCaseResult {
 }
 
 const BASE_URL = process.env.CODORA_JUDGE_URL || "https://godbolt.org/api";
-const COMPILER_ID = process.env.CODORA_JUDGE_COMPILER || "g132";
 
 interface OutputLine {
   text: string;
@@ -34,23 +34,42 @@ interface CompileResult {
   execResult?: ExecResult;
 }
 
-const sourceCodeCache = new Map<string, string>();
+interface SourceEntry {
+  code: string;
+  language: LanguageId;
+}
+
+const sourceCache = new Map<string, SourceEntry>();
 
 function linesToString(lines: OutputLine[] | undefined): string {
   if (!lines || lines.length === 0) return "";
   return lines.map((l) => l.text).join("");
 }
 
+function normalizeJavaSource(code: string): string {
+  return code.replace(/\bpublic\s+class\b/g, "class");
+}
+
+function normalizeSourceForCompiler(code: string, language: LanguageId): string {
+  if (language === "java") {
+    return normalizeJavaSource(code);
+  }
+  return code;
+}
+
+const COMMUNICATION_TIMEOUT_MS = 30000;
+
 async function requestJudge(
-  code: string,
+  source: string,
+  compilerId: string,
+  userArguments: string,
   input: string,
-  execute: boolean,
-  timeoutMs: number
+  execute: boolean
 ): Promise<CompileResult> {
   const payload = {
-    source: code,
+    source,
     options: {
-      userArguments: "-std=c++17 -O2",
+      userArguments,
       executeParameters: {
         stdin: input,
         args: [],
@@ -59,42 +78,59 @@ async function requestJudge(
     },
   };
 
-  const res = await fetch(`${BASE_URL}/compiler/${COMPILER_ID}/compile`, {
+  const res = await fetch(`${BASE_URL}/compiler/${compilerId}/compile`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
     body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(Math.max(timeoutMs + 5000, 30000)),
+    signal: AbortSignal.timeout(COMMUNICATION_TIMEOUT_MS),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Code execution service error (${res.status}): ${text.slice(0, 500)}`);
+    throw new Error(
+      `Code execution service error (${res.status}): ${text.slice(0, 500)}`
+    );
   }
 
   return (await res.json()) as CompileResult;
 }
 
-export async function writeSource(code: string): Promise<{
+export async function writeSource(code: string, language: LanguageId = "cpp"): Promise<{
   tempDir: string;
   sourceFile: string;
   executablePath: string;
 }> {
   const tempDir = `remote-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  sourceCodeCache.set(tempDir, code);
-  return { tempDir, sourceFile: path.join(tempDir, "main.cpp"), executablePath: path.join(tempDir, "main") };
+  const config = getLanguageConfig(language);
+  const ext = language === "cpp" ? "cpp" : language;
+  sourceCache.set(tempDir, { code, language });
+  return {
+    tempDir,
+    sourceFile: path.join(tempDir, `main.${ext}`),
+    executablePath: path.join(tempDir, "main"),
+  };
 }
 
 export async function compile(sourceFile: string, executablePath: string): Promise<void> {
   const tempDir = path.dirname(sourceFile);
-  const code = sourceCodeCache.get(tempDir);
-  if (typeof code !== "string") {
+  const entry = sourceCache.get(tempDir);
+  if (!entry) {
     throw new Error("No source code found for this compilation");
   }
 
-  const result = await requestJudge(code, "", false, COMPILE_TIMEOUT_MS);
+  const config = getLanguageConfig(entry.language);
+  const source = normalizeSourceForCompiler(entry.code, entry.language);
+  const result = await requestJudge(
+    source,
+    config.compilerId,
+    config.userArguments,
+    "",
+    false
+  );
+
   if (result.code !== 0) {
     const stderr = linesToString(result.stderr) || "Compilation failed";
     const err = new Error(stderr) as Error & { stderr: string };
@@ -110,12 +146,20 @@ export async function runWithInput(
   timeoutMs: number = RUN_TIMEOUT_MS,
   keepStdinOpen: boolean = false
 ): Promise<string> {
-  const code = sourceCodeCache.get(cwd);
-  if (typeof code !== "string") {
+  const entry = sourceCache.get(cwd);
+  if (!entry) {
     throw new Error("No source code found for this run");
   }
 
-  const result = await requestJudge(code, input, true, timeoutMs);
+  const config = getLanguageConfig(entry.language);
+  const source = normalizeSourceForCompiler(entry.code, entry.language);
+  const result = await requestJudge(
+    source,
+    config.compilerId,
+    config.userArguments,
+    input,
+    true
+  );
 
   if (result.code !== 0) {
     const stderr = linesToString(result.stderr) || "Compilation failed";
@@ -131,11 +175,20 @@ export async function runWithInput(
     throw err;
   }
 
-  if (exec && exec.code !== 0 && linesToString(exec.stdout).length === 0 && linesToString(exec.stderr).length === 0) {
+  if (
+    exec &&
+    exec.code !== 0 &&
+    linesToString(exec.stdout).length === 0 &&
+    linesToString(exec.stderr).length === 0
+  ) {
     throw new Error(`Process exited with code ${exec.code}`);
   }
 
-  return linesToString(exec?.stdout) || linesToString(exec?.stderr) || "(no output)";
+  return (
+    linesToString(exec?.stdout) ||
+    linesToString(exec?.stderr) ||
+    "(no output)"
+  );
 }
 
 export function normalizeOutput(output: string): string {
@@ -143,5 +196,5 @@ export function normalizeOutput(output: string): string {
 }
 
 export function cleanupDir(dir: string): void {
-  sourceCodeCache.delete(dir);
+  sourceCache.delete(dir);
 }

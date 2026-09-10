@@ -13,6 +13,8 @@ import {
   DEFAULT_IDE_CODE,
   SavedProgram,
 } from "@/lib/ideDraft";
+import { useApp } from "@/hooks/useApp";
+import { getLanguageConfig } from "@/lib/languages";
 
 const CodeEditor = dynamic(
   () => import("@/components/editor/CodeEditor").then((mod) => mod.Editor),
@@ -20,7 +22,9 @@ const CodeEditor = dynamic(
 );
 
 export default function IdePage() {
-  const [code, setCode] = useState<string>(DEFAULT_IDE_CODE);
+  const { language } = useApp();
+  const config = getLanguageConfig(language);
+  const [code, setCode] = useState<string>(config?.template ?? DEFAULT_IDE_CODE);
   const [mounted, setMounted] = useState(false);
   const [saved, setSaved] = useState<SavedProgram[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -29,13 +33,16 @@ export default function IdePage() {
 
   useEffect(() => {
     setMounted(true);
-    setCode(getDraft());
+    const currentLang = (language as string) || "cpp";
+    setCode(getDraft(currentLang));
     setSaved(getSavedPrograms());
-  }, []);
+  }, [language]);
 
   useEffect(() => {
-    if (mounted) setDraft(code);
-  }, [code, mounted]);
+    if (mounted && language) {
+      setDraft(code, language);
+    }
+  }, [code, mounted, language]);
 
   const handleSave = () => {
     setIsSaving(true);
@@ -138,9 +145,9 @@ export default function IdePage() {
         <div className="animate-fade-in-up">
           <h1 className="text-2xl font-bold text-slate-700 flex items-center gap-2">
             <Icon name="Terminal" size={24} className="text-accent" />
-            C++ Playground
+            {config?.label ?? "C++"} Playground
           </h1>
-          <p className="text-sm text-slate-400 mt-1">Free editor — write, run, and save any C++ program.</p>
+          <p className="text-sm text-slate-400 mt-1">Free editor — write, run, and save any {config?.label ?? "C++"} program.</p>
         </div>
 
         <div className="animate-fade-in-up stagger-1">
@@ -150,13 +157,15 @@ export default function IdePage() {
             onRun={() => {}}
             onCheck={() => {}}
             problemId="ide"
+            language={language}
           />
         </div>
 
         <button
           onClick={() => {
-            setCode(DEFAULT_IDE_CODE);
-            setDraft(DEFAULT_IDE_CODE);
+            const template = getLanguageConfig(language).template ?? DEFAULT_IDE_CODE;
+            setCode(template);
+            setDraft(template, language);
           }}
           className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-white text-slate-500 text-xs font-bold shadow-lg shadow-black/15 hover:text-rose-500 transition-colors"
         >

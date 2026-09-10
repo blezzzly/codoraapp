@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeSource, compile, runWithInput, cleanupDir, RUN_TIMEOUT_MS, INPUT_PROBE_TIMEOUT_MS } from "@/lib/codeExecutor";
 import { validateCode, sanitizeError } from "@/lib/codeValidation";
 import { explainCompileError } from "@/lib/explainError";
+import { getLanguageConfig } from "@/lib/languages";
 
 interface RunCodeRequest {
   code: string;
@@ -10,9 +11,6 @@ interface RunCodeRequest {
 }
 
 const MAX_INPUT_LENGTH = 10000;
-
-const READS_INPUT =
-  /\bcin\b|\bcin\s*>>|\bstd::cin\b|\bscanf\b|\bgetline\b|\bstd::getline\b|\bgets\b|\bgetchar\b/;
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX = 20;
@@ -49,7 +47,9 @@ export async function POST(request: NextRequest) {
     const { code, language = "cpp" } = body as RunCodeRequest;
     const hasInputField = typeof body?.input === "string";
     const input = hasInputField ? (body.input as string) : "";
-    const likelyReadsInput = READS_INPUT.test(code);
+    const langConfig = getLanguageConfig(language);
+    const langId = langConfig.id;
+    const likelyReadsInput = langConfig.readsInput.test(code);
 
     const check = validateCode(code, language);
     if (!check.valid) {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { tempDir, sourceFile, executablePath } = await writeSource(code);
+    const { tempDir, sourceFile, executablePath } = await writeSource(code, langId);
 
     try {
       await compile(sourceFile, executablePath);

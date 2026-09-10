@@ -1,10 +1,11 @@
 import * as path from "path";
 import * as os from "os";
+import { isSupportedLanguage } from "@/lib/languages";
 
 export const MAX_CODE_LENGTH = 10000;
 export const MAX_OUTPUT_LENGTH = 1024 * 1024;
 
-export const DANGEROUS_PATTERNS: { pattern: RegExp; reason: string }[] = [
+const CPP_DANGEROUS_PATTERNS: { pattern: RegExp; reason: string }[] = [
   { pattern: /system\s*\(/, reason: "system() calls are not allowed" },
   { pattern: /popen\s*\(/, reason: "popen() calls are not allowed" },
   { pattern: /\bexec(ve|lp|cl)?\s*\(/, reason: "process execution is not allowed" },
@@ -35,6 +36,42 @@ export const DANGEROUS_PATTERNS: { pattern: RegExp; reason: string }[] = [
   { pattern: /\brename\s*\(/, reason: "file operations are not allowed" },
 ];
 
+const JAVA_DANGEROUS_PATTERNS: { pattern: RegExp; reason: string }[] = [
+  { pattern: /Runtime\s*\.\s*getRuntime\s*\(/, reason: "runtime execution is not allowed" },
+  { pattern: /\.\s*exec\s*\(/, reason: "process execution is not allowed" },
+  { pattern: /ProcessBuilder\s*\(/, reason: "process execution is not allowed" },
+  { pattern: /\bProcess\b/, reason: "process execution is not allowed" },
+  { pattern: /java\.io\s*\.|import\s+java\s*\.\s*io/, reason: "file I/O is not allowed" },
+  { pattern: /\bFile(Reader|Writer|InputStream|OutputStream)?\b/, reason: "file access is not allowed" },
+  { pattern: /\bFiles\./, reason: "file access is not allowed" },
+  { pattern: /\bSocket\b/, reason: "network access is not allowed" },
+  { pattern: /java\.net\s*\.|import\s+java\s*\.\s*net/, reason: "network access is not allowed" },
+  { pattern: /System\s*\.\s*(setProperty|getenv|exit)\s*\(/, reason: "system access is not allowed" },
+  { pattern: /ClassLoader|System\.load/, reason: "native code loading is not allowed" },
+  { pattern: /\\[A-Za-z]:\\\\/, reason: "absolute paths are not allowed" },
+];
+
+const PYTHON_DANGEROUS_PATTERNS: { pattern: RegExp; reason: string }[] = [
+  { pattern: /\bos\s*\.\s*(system|popen|spawn|exec)\s*\(/, reason: "process execution is not allowed" },
+  { pattern: /subprocess\s*/, reason: "process execution is not allowed" },
+  { pattern: /\bexec\s*\(/, reason: "code execution is not allowed" },
+  { pattern: /\beval\s*\(/, reason: "code execution is not allowed" },
+  { pattern: /__import__\s*\(/, reason: "dynamic imports are not allowed" },
+  { pattern: /\bopen\s*\(/, reason: "file access is not allowed" },
+  { pattern: /\bsocket\s*\./, reason: "network access is not allowed" },
+  { pattern: /import\s+(urllib|requests?|ftplib|smtplib)/, reason: "network access is not allowed" },
+  { pattern: /import\s+(ctypes|multiprocessing)/, reason: "system access is not allowed" },
+  { pattern: /os\.environ/, reason: "environment access is not allowed" },
+  { pattern: /\\[A-Za-z]:\\\\/, reason: "absolute paths are not allowed" },
+];
+
+const DANGEROUS_PATTERNS: Record<string, { pattern: RegExp; reason: string }[]> = {
+  cpp: CPP_DANGEROUS_PATTERNS,
+  c: CPP_DANGEROUS_PATTERNS,
+  java: JAVA_DANGEROUS_PATTERNS,
+  python: PYTHON_DANGEROUS_PATTERNS,
+};
+
 export function validateCode(code: string, language: string): { valid: boolean; error?: string } {
   if (typeof code !== "string") {
     return { valid: false, error: "Invalid request" };
@@ -48,11 +85,15 @@ export function validateCode(code: string, language: string): { valid: boolean; 
     return { valid: false, error: `Code too long (max ${MAX_CODE_LENGTH} characters)` };
   }
 
-  if (!["cpp", "c"].includes(language)) {
-    return { valid: false, error: "Unsupported language. Only C++ is supported." };
+  if (!isSupportedLanguage(language)) {
+    return {
+      valid: false,
+      error: `Unsupported language "${language}". Supported: C++, Java, Python.`,
+    };
   }
 
-  for (const { pattern, reason } of DANGEROUS_PATTERNS) {
+  const patterns = DANGEROUS_PATTERNS[language] || [];
+  for (const { pattern, reason } of patterns) {
     if (pattern.test(code)) {
       return { valid: false, error: `Security restriction: ${reason}` };
     }

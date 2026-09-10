@@ -6,6 +6,7 @@ import { achievements as defaultAchievements, checkAchievements } from "@/data/a
 import type { UserProfile, StudentProgress, Achievement, ProblemStatus } from "@/types";
 import * as db from "@/lib/database";
 import { Icon } from "@/components/ui/icon";
+import { DEFAULT_LANGUAGE, isSupportedLanguage, LANGUAGES, LanguageId } from "@/lib/languages";
 
 interface AppContextType {
   profile: UserProfile;
@@ -14,6 +15,8 @@ interface AppContextType {
   worlds: typeof worlds;
   problems: typeof problems;
   isLoaded: boolean;
+  language: LanguageId;
+  setLanguage: (language: LanguageId) => void;
   updateProgress: (problemId: string, status: ProblemStatus, code?: string) => Promise<void>;
   addXP: (amount: number) => Promise<void>;
   checkStreak: () => Promise<void>;
@@ -35,11 +38,36 @@ const defaultProfile: UserProfile = {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+const LANGUAGE_KEY = "codora_selected_language";
+
+function loadSavedLanguage(): LanguageId {
+  if (typeof window === "undefined") return DEFAULT_LANGUAGE;
+  try {
+    const stored = localStorage.getItem(LANGUAGE_KEY);
+    if (stored && isSupportedLanguage(stored)) {
+      return stored as LanguageId;
+    }
+  } catch {}
+  return DEFAULT_LANGUAGE;
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [progress, setProgress] = useState<Record<string, StudentProgress>>({});
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [language, setLanguageState] = useState<LanguageId>(DEFAULT_LANGUAGE);
+
+  const setLanguage = useCallback((next: LanguageId) => {
+    setLanguageState(next);
+    try {
+      localStorage.setItem(LANGUAGE_KEY, next);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    setLanguageState(loadSavedLanguage());
+  }, []);
 
   const refreshData = useCallback(async () => {
     try {
@@ -202,6 +230,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     worlds,
     problems,
     isLoaded,
+    language,
+    setLanguage,
     updateProgress,
     addXP,
     checkStreak,
@@ -221,7 +251,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               </div>
             </div>
             <h1 className="text-2xl font-bold text-slate-700">
-              codora <span className="text-primary font-light">c++</span>
+              codora <span className="text-primary font-light">{LANGUAGES[language].label}</span>
             </h1>
             <p className="text-slate-400 mt-1 text-xs">Loading your journey...</p>
           </div>

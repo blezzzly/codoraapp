@@ -4,17 +4,13 @@ import React, { useState, useRef, useEffect } from "react";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/hooks/useApp";
+import { LANGUAGES, LanguageId } from "@/lib/languages";
 
-const LANGUAGES = [
-  { id: "cpp", label: "C++", icon: "Code", available: true },
-  { id: "java", label: "Java", icon: "Coffee", available: false },
-  { id: "python", label: "Python", icon: "Terminal", available: false },
-];
+const LANGUAGES_ORDER: LanguageId[] = ["cpp", "java", "python"];
 
 export default function MobileHeader() {
-  const { profile } = useApp();
+  const { profile, language: activeLanguage, setLanguage } = useApp();
   const [isLangOpen, setIsLangOpen] = useState(false);
-  const [activeLanguage, setActiveLanguage] = useState("cpp");
   const langRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,7 +23,7 @@ export default function MobileHeader() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const activeLabel = LANGUAGES.find(l => l.id === activeLanguage)?.label;
+  const activeLabel = LANGUAGES[activeLanguage as LanguageId]?.label;
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 md:hidden bg-white/90 backdrop-blur-md">
@@ -61,33 +57,26 @@ export default function MobileHeader() {
               <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Choose Language
               </p>
-              {LANGUAGES.map((lang) => {
-                const isActive = lang.id === activeLanguage;
+              {LANGUAGES_ORDER.map((langId) => {
+                const lang = LANGUAGES[langId];
+                const isActive = langId === activeLanguage;
                 return (
                   <button
                     key={lang.id}
-                    disabled={!lang.available}
                     onClick={() => {
-                      setActiveLanguage(lang.id);
+                      setLanguage(langId);
                       setIsLangOpen(false);
                     }}
                     className={cn(
                       "flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors",
                       isActive
                         ? "bg-background text-foreground"
-                        : lang.available
-                        ? "text-slate-600 hover:bg-background hover:text-foreground"
-                        : "text-slate-400 cursor-default"
+                        : "text-slate-600 hover:bg-background hover:text-foreground"
                     )}
                   >
-                    <Icon name={lang.icon} size={18} className={cn(isActive && "text-foreground")} />
+                    <Icon name={lang.icon} size={18} className={cn(!isActive && "text-slate-400")} />
                     {lang.label}
                     {isActive && <Icon name="Check" size={16} className="ml-auto text-foreground" />}
-                    {!isActive && !lang.available && (
-                      <span className="ml-auto px-2 py-0.5 rounded-full bg-background text-[10px] font-bold text-foreground">
-                        SOON
-                      </span>
-                    )}
                   </button>
                 );
               })}
