@@ -1,7 +1,4 @@
-import { spawn } from "child_process";
-import * as fs from "fs";
 import * as path from "path";
-import * as os from "os";
 
 export const COMPILE_TIMEOUT_MS = 10000;
 export const RUN_TIMEOUT_MS = 5000;
@@ -15,71 +12,95 @@ export interface TestCaseResult {
   actualOutput: string;
 }
 
-function compilerArgs(sourceFile: string, executablePath: string): string[] {
-  return [
-    "-O2",
-    "-std=c++17",
-    "-Wall",
-    "-Wextra",
-    "-static",
-    "-D_FORTIFY_SOURCE=2",
-    "-fstack-protector-all",
-    sourceFile,
-    "-o",
-    executablePath,
-  ];
+const BASE_URL = process.env.CODORA_JUDGE_URL || "https://godbolt.org/api";
+const COMPILER_ID = process.env.CODORA_JUDGE_COMPILER || "g132";
+
+interface OutputLine {
+  text: string;
 }
 
-export async function writeSource(code: string): Promise<{ tempDir: string; sourceFile: string; executablePath: string }> {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codora-"));
-  const sourceFile = path.join(tempDir, "main.cpp");
-  const executablePath = path.join(tempDir, "main.js");
-  await fs.promises.writeFile(sourceFile, code, "utf-8");
-  return { tempDir, sourceFile, executablePath };
+interface ExecResult {
+  code: number;
+  didExecute: boolean;
+  timedOut: boolean;
+  stdout: OutputLine[];
+  stderr: OutputLine[];
+}
+
+interface CompileResult {
+  code: number;
+  stdout: OutputLine[];
+  stderr: OutputLine[];
+  execResult?: ExecResult;
+}
+
+const sourceCodeCache = new Map<string, string>();
+
+function linesToString(lines: OutputLine[] | undefined): string {
+  if (!lines || lines.length === 0) return "";
+  return lines.map((l) => l.text).join("");
+}
+
+async function requestJudge(
+  code: string,
+  input: string,
+  execute: boolean,
+  timeoutMs: number
+): Promise<CompileResult> {
+  const payload = {
+    source: code,
+    options: {
+      userArguments: "-std=c++17 -O2",
+      executeParameters: {
+        stdin: input,
+        args: [],
+      },
+      filters: { execute },
+    },
+  };
+
+  const res = await fetch(`${BASE_URL}/compiler/${COMPILER_ID}/compile`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(Math.max(timeoutMs + 5000, 30000)),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Code execution service error (${res.status}): ${text.slice(0, 500)}`);
+  }
+
+  return (await res.json()) as CompileResult;
+}
+
+export async function writeSource(code: string): Promise<{
+  tempDir: string;
+  sourceFile: string;
+  executablePath: string;
+}> {
+  const tempDir = `remote-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  sourceCodeCache.set(tempDir, code);
+  return { tempDir, sourceFile: path.join(tempDir, "main.cpp"), executablePath: path.join(tempDir, "main") };
 }
 
 export async function compile(sourceFile: string, executablePath: string): Promise<void> {
-  const cheerp = await import("cheerp");
-  return new Promise((resolve, reject) => {
-    const child = spawn(cheerp.path, compilerArgs(sourceFile, executablePath), {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stderr = "";
-    let done = false;
-    const timer = setTimeout(() => {
-      if (!done) {
-        done = true;
-        child.kill("SIGKILL");
-        reject(new Error("Compilation timeout"));
-      }
-    }, COMPILE_TIMEOUT_MS);
-    child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (d: string) => {
-      stderr += d;
-    });
-    child.on("error", (err) => {
-      if (!done) {
-        done = true;
-        clearTimeout(timer);
-        reject(err);
-      }
-    });
-    child.on("close", (code) => {
-      if (done) {
-        clearTimeout(timer);
-        return;
-      }
-      done = true;
-      clearTimeout(timer);
-      if (code === 0) {
-        resolve();
-      } else {
-        const err = new Error(stderr || `cheerp exited with code ${code}`) as Error & { stderr: string };
-        err.stderr = stderr;
-        reject(err);
-      }
-    });
-  });
+  const tempDir = path.dirname(sourceFile);
+  const code = sourceCodeCache.get(tempDir);
+  if (typeof code !== "string") {
+    throw new Error("No source code found for this compilation");
+  }
+
+  const result = await requestJudge(code, "", false, COMPILE_TIMEOUT_MS);
+  if (result.code !== 0) {
+    const stderr = linesToString(result.stderr) || "Compilation failed";
+    const err = new Error(stderr) as Error & { stderr: string };
+    err.stderr = stderr;
+    throw err;
+  }
 }
 
 export async function runWithInput(
@@ -89,88 +110,32 @@ export async function runWithInput(
   timeoutMs: number = RUN_TIMEOUT_MS,
   keepStdinOpen: boolean = false
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const useNode = executablePath.endsWith(".js");
-    const actualExe = useNode ? "node" : executablePath;
-    const child = spawn(actualExe, useNode ? [executablePath] : [], {
-      stdio: ["pipe", "pipe", "pipe"],
-      cwd,
-    });
-    let stdout = "";
-    let stderr = "";
-    let done = false;
+  const code = sourceCodeCache.get(cwd);
+  if (typeof code !== "string") {
+    throw new Error("No source code found for this run");
+  }
 
-    const timer = setTimeout(() => {
-      if (!done) {
-        done = true;
-        try {
-          child.kill("SIGKILL");
-        } catch {}
-        const err = new Error("Execution timeout") as Error & { partialOutput?: string };
-        err.partialOutput = stdout;
-        reject(err);
-      }
-    }, timeoutMs);
+  const result = await requestJudge(code, input, true, timeoutMs);
 
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (d: string) => {
-      stdout += d;
-      if (stdout.length > MAX_OUTPUT_LENGTH && !done) {
-        done = true;
-        try {
-          child.kill("SIGKILL");
-        } catch {}
-        reject(new Error("Output too large"));
-      }
-    });
-    child.stderr?.on("data", (d: string) => {
-      stderr += d;
-      if (stderr.length > MAX_OUTPUT_LENGTH && !done) {
-        done = true;
-        try {
-          child.kill("SIGKILL");
-        } catch {}
-        reject(new Error("Output too large"));
-      }
-    });
-    child.on("error", (err) => {
-      if (!done) {
-        done = true;
-        clearTimeout(timer);
-        reject(err);
-      }
-    });
-    child.on("close", (code) => {
-      if (done) {
-        clearTimeout(timer);
-        return;
-      }
-      done = true;
-      clearTimeout(timer);
-      const combined = stderr || stdout || "";
-      if (code !== 0 && combined.length === 0) {
-        reject(new Error(`Process exited with code ${code}`));
-      } else {
-        resolve(combined);
-      }
-    });
+  if (result.code !== 0) {
+    const stderr = linesToString(result.stderr) || "Compilation failed";
+    const err = new Error(stderr) as Error & { stderr: string };
+    err.stderr = stderr;
+    throw err;
+  }
 
-    try {
-      if (!keepStdinOpen && input.length > 0) {
-        child.stdin?.write(input);
-      }
-      if (!keepStdinOpen) {
-        child.stdin?.end();
-      }
-    } catch (err) {
-      if (!done) {
-        done = true;
-        clearTimeout(timer);
-        reject(err as Error);
-      }
-    }
-  });
+  const exec = result.execResult;
+  if (exec?.timedOut) {
+    const err = new Error("Execution timeout") as Error & { partialOutput?: string };
+    err.partialOutput = linesToString(exec.stdout);
+    throw err;
+  }
+
+  if (exec && exec.code !== 0 && linesToString(exec.stdout).length === 0 && linesToString(exec.stderr).length === 0) {
+    throw new Error(`Process exited with code ${exec.code}`);
+  }
+
+  return linesToString(exec?.stdout) || linesToString(exec?.stderr) || "(no output)";
 }
 
 export function normalizeOutput(output: string): string {
@@ -178,7 +143,5 @@ export function normalizeOutput(output: string): string {
 }
 
 export function cleanupDir(dir: string): void {
-  try {
-    fs.rmSync(dir, { recursive: true, force: true });
-  } catch {}
+  sourceCodeCache.delete(dir);
 }
