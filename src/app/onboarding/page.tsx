@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/icon";
 import { useApp } from "@/hooks/useApp";
@@ -24,6 +24,14 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [selectedLang, setSelectedLang] = useState<LanguageId>("cpp");
   const [selectedGoal, setSelectedGoal] = useState<5 | 3 | 10>(5);
+
+  useEffect(() => {
+    // Keep a fresh history entry so the browser's Back never leaves onboarding.
+    window.history.pushState(null, "", window.location.href);
+    const trapBack = () => window.history.pushState(null, "", window.location.href);
+    window.addEventListener("popstate", trapBack);
+    return () => window.removeEventListener("popstate", trapBack);
+  }, []);
 
   const current = STEPS[step];
   const totalSteps = STEPS.length;
@@ -150,7 +158,7 @@ export default function OnboardingPage() {
               </p>
             </div>
             <div className="w-full space-y-3">
-              {(Object.keys(LANGUAGES) as LanguageId[]).map((id) => {
+              {(Object.keys(LANGUAGES) as LanguageId[]).map((id, i) => {
                 const lang = LANGUAGES[id];
                 const active = selectedLang === id;
                 return (
@@ -158,10 +166,11 @@ export default function OnboardingPage() {
                     key={id}
                     onClick={() => setSelectedLang(id)}
                     className={cn(
-                      "w-full rounded-2xl p-4 shadow-md shadow-black/5 text-left transition-all duration-300",
+                      "w-full rounded-2xl p-4 text-left transition-all duration-300 animate-fade-in-up",
+                      `stagger-${i + 1}`,
                       active
-                        ? "ring-2 ring-primary bg-white shadow-lg"
-                        : "bg-white hover:shadow-lg hover:-translate-y-0.5"
+                        ? "ring-2 ring-primary bg-white shadow-lg scale-[1.02]"
+                        : "bg-white shadow-md shadow-black/5 hover:shadow-lg hover:-translate-y-0.5 hover:scale-[1.01]"
                     )}
                   >
                     <div className="flex items-center gap-3">
@@ -221,14 +230,15 @@ export default function OnboardingPage() {
               </p>
             </div>
             <div className="flex gap-4">
-              {DAILY_GOALS.map((n) => {
+              {DAILY_GOALS.map((n, i) => {
                 const active = selectedGoal === n;
                 return (
                   <button
                     key={n}
                     onClick={() => setSelectedGoal(n)}
                     className={cn(
-                      "relative flex h-24 w-24 flex-col items-center justify-center gap-1 rounded-2xl transition-all duration-300",
+                      "relative flex h-24 w-24 flex-col items-center justify-center gap-1 rounded-2xl transition-all duration-300 animate-fade-in-up",
+                      `stagger-${i + 1}`,
                       active
                         ? "bg-primary text-foreground shadow-lg shadow-black/15 scale-105"
                         : "bg-white text-muted-foreground shadow-md shadow-black/5 hover:shadow-lg hover:-translate-y-0.5"
