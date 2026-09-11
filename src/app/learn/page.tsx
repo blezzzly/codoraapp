@@ -1,303 +1,219 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useApp } from "@/hooks/useApp";
 import { Icon } from "@/components/ui/icon";
-import { setDraft } from "@/lib/ideDraft";
-import { getLanguageConfig, LanguageId } from "@/lib/languages";
-import { useState, useEffect } from "react";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
+import { ProgressBar } from "@/components/ui/progress";
+import { LoadingState } from "@/components/ui/states";
+import { cn } from "@/lib/utils";
+import type { Problem } from "@/types";
+
+const DIFFICULTY_STYLE: Record<string, string> = {
+  beginner: "bg-secondary text-foreground",
+  easy: "bg-emerald-100 text-emerald-700",
+  medium: "bg-amber-100 text-amber-700",
+  hard: "bg-rose-100 text-rose-700",
+};
 
 export default function LearnPage() {
-  const { worlds, problems, progress, language, setLanguage } = useApp();
-  const router = useRouter();
-  const [mounted, setMounted] = useState(false);
+  const { worlds, problems, progress, isUnlocked, solvedCount, isLoaded } = useApp();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  if (!isLoaded) return <LoadingState label="Loading your learning path..." />;
 
-  const openLanguage = (langId: LanguageId) => {
-    setLanguage(langId);
-    setDraft(getLanguageConfig(langId).template, langId);
-    router.push("/ide");
-  };
+  const problemsByWorld = (worldId: string) =>
+    problems.filter((p) => p.world === worldId);
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative w-16 h-16">
-            <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-50" />
-            <div className="relative w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-xl">
-              <Icon name="GraduationCap" size={28} className="text-foreground" />
-            </div>
-          </div>
-          <p className="text-slate-400 text-sm">Loading path...</p>
-        </div>
-      </div>
-    );
-  }
+  const totalSolved = solvedCount;
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-10">
-        {/* Page Header */}
-        <div>
-          <div className="relative bg-white rounded-3xl p-6 shadow-lg shadow-black/15 overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-background rounded-full blur-3xl -z-0" />
-            <div className="relative flex items-center gap-4">
-              <div className="w-14 h-14 shrink-0 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-black/20">
-                <Icon name="GraduationCap" size={26} className="text-foreground" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-700">Learning Path</h1>
-                <p className="text-sm text-slate-400">Choose a language and start your journey</p>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
+      <PageHeader
+        icon="GraduationCap"
+        title="Learning Path"
+        subtitle="C++ course — complete lessons in order to unlock the next"
+      />
 
-        {/* Language Chooser */}
-        <div className="animate-fade-in-up stagger-1">
-          <div className="flex items-center gap-2 mb-3">
-            <Icon name="Layers" size={18} className="text-accent" />
-            <h2 className="text-base font-bold text-slate-700">Choose your language</h2>
-          </div>
-          <div className="space-y-3">
-            <div className="relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 ring-2 ring-primary/40 overflow-hidden">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-secondary flex items-center justify-center">
-                  <Icon name="Code" size={22} className="text-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-slate-700">C++</h3>
-                    <span className="px-2 py-0.5 rounded-full bg-secondary text-[10px] font-bold text-foreground uppercase">Beginner</span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-0.5">{problems.length} lessons · full roadmap</p>
-                </div>
-                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-background text-xs font-bold text-foreground">
-                  <Icon name="Check" size={14} /> Active
-                </span>
-              </div>
-              <div className="mt-3 h-1.5 bg-secondary rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-secondary rounded-full transition-all duration-1000"
-                  style={{ width: `${Math.round((Object.values(progress).filter(p => p.status === "solved").length / Math.max(problems.length, 1)) * 100)}%` }}
-                />
-              </div>
-            </div>
+      <div className="rounded-2xl bg-white p-4 shadow-md shadow-black/5">
+        <ProgressBar
+          value={(totalSolved / Math.max(problems.length, 1)) * 100}
+          label={
+            totalSolved === 0
+              ? "Your journey starts here"
+              : `${totalSolved} of ${problems.length} lessons completed`
+          }
+        />
+      </div>
 
-            <button
-              onClick={() => openLanguage("python")}
-              className="w-full relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-background flex items-center justify-center group-hover:bg-secondary transition-colors duration-300">
-                  <Icon name="Terminal" size={22} className="text-slate-400 group-hover:text-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-slate-700">Python</h3>
-                    <span className="px-2 py-0.5 rounded-full bg-background text-[10px] font-bold text-slate-400 uppercase">Beginner</span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-0.5">Lessons coming · code in the IDE now</p>
-                </div>
-                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-secondary text-xs font-bold text-slate-500 group-hover:text-foreground">
-                  <Icon name="Terminal" size={14} /> Open IDE
-                </span>
-              </div>
-            </button>
-
-            <button
-              onClick={() => openLanguage("java")}
-              className="w-full relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 shrink-0 rounded-xl bg-background flex items-center justify-center group-hover:bg-secondary transition-colors duration-300">
-                  <Icon name="Coffee" size={22} className="text-slate-400 group-hover:text-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-slate-700">Java</h3>
-                    <span className="px-2 py-0.5 rounded-full bg-background text-[10px] font-bold text-slate-400 uppercase">Beginner</span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-0.5">Lessons coming · code in the IDE now</p>
-                </div>
-                <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-secondary text-xs font-bold text-slate-500 group-hover:text-foreground">
-                  <Icon name="Coffee" size={14} /> Open IDE
-                </span>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {worlds.map((world, worldIdx) => {
-          const worldProblems = problems.filter(p => p.world === world.id);
-          const solvedInWorld = worldProblems.filter(p => progress[p.id]?.status === "solved").length;
-          const totalInWorld = worldProblems.length;
-          const progressPercent = totalInWorld > 0 ? Math.round((solvedInWorld / totalInWorld) * 100) : 0;
-          const isUnlocked = world.unlocked;
-          const worldTitleColor = worldIdx === 0 ? "text-foreground" : worldIdx === 1 ? "text-foreground" : "text-violet-600";
+      <div className="space-y-8">
+        {worlds.map((world) => {
+          const worldProblems = problemsByWorld(world.id);
+          const solvedInWorld = worldProblems.filter(
+            (p) => progress[p.id]?.status === "solved"
+          ).length;
+          const worldUnlocked = worldProblems.some((p) => isUnlocked(p.id));
 
           return (
-            <div key={world.id} className="animate-fade-in-up opacity-0" style={{ animationDelay: `${worldIdx * 0.15}s`, animationFillMode: "forwards" }}>
-              {/* World Header */}
-              <div className="mb-8">
-                <div className="flex items-center gap-3 mb-2">
-                  <div 
-                    className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center shadow-md transition-transform duration-300 hover:scale-110 hover:rotate-3"
-                    style={{ backgroundColor: `${world.color}20` }}
+            <section key={world.id} className="animate-fade-in-up">
+              <div className="relative overflow-hidden rounded-3xl bg-white p-5 shadow-md shadow-black/5">
+                <div
+                  className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full opacity-70 blur-2xl"
+                  style={{ backgroundColor: world.color }}
+                />
+                <div className="relative flex items-center gap-4">
+                  <span
+                    className="flex h-13 w-13 shrink-0 items-center justify-center rounded-2xl shadow-md"
+                    style={{ backgroundColor: world.color }}
                   >
-                    <Icon name={world.icon} size={24} className="text-foreground" />
-                  </div>
-                  <h2 className={`text-2xl font-bold ${worldTitleColor}`}>
-                    {world.title}
-                  </h2>
-                </div>
-                <p className="text-sm text-slate-400 ml-[60px]">{world.description}</p>
-                {totalInWorld > 0 && (
-                  <div className="flex items-center gap-3 mt-4 ml-[60px]">
-                    <div className="relative flex-1 h-2 bg-secondary rounded-full overflow-hidden">
-                      <div 
-                        className="absolute inset-y-0 left-0 bg-secondary rounded-full transition-all duration-1000 ease-out"
-                        style={{ width: `${progressPercent}%` }}
-                      />
-                      <div 
-                        className="absolute inset-y-0 left-0 w-4 bg-white/30 rounded-full blur-sm transition-all duration-1000"
-                        style={{ width: `${progressPercent}%` }}
-                      />
+                    <Icon
+                      name={world.icon}
+                      size={26}
+                      className={world.id === "world-3" ? "text-primary" : "text-foreground"}
+                    />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-extrabold text-foreground">
+                        World {world.order}: {world.title}
+                      </h2>
+                      {!worldUnlocked && (
+                        <Icon name="Lock" size={15} className="text-muted-foreground/50" />
+                      )}
                     </div>
-                    <span className="text-xs font-semibold text-foreground tabular-nums">{progressPercent}%</span>
+                    <p className="text-sm text-muted-foreground">{world.description}</p>
                   </div>
-                )}
+                  <span className="shrink-0 text-sm font-extrabold text-foreground tabular-nums">
+                    {solvedInWorld}/{worldProblems.length}
+                  </span>
+                </div>
+                <div className="relative mt-4">
+                  <ProgressBar value={world.mastery} />
+                </div>
               </div>
 
-              {/* Lesson Path - Connected Nodes */}
-              <div className="relative pl-12">
+              <div className="mt-4 space-y-2">
                 {worldProblems.map((problem, index) => {
-                  const problemProgress = progress[problem.id];
-                  const isSolved = problemProgress?.status === "solved";
-                  const isInProgress = problemProgress?.status === "in-progress";
-                  const isLocked = !isUnlocked && index > 0;
-                  const isLast = index === worldProblems.length - 1;
-                  const isCurrent = !isSolved && (index === solvedInWorld);
+                  const unlocked = isUnlocked(problem.id);
+                  const st = progress[problem.id];
+                  const solved = st?.status === "solved";
+                  const inProgress =
+                    st && st.status !== "solved" && (st.attempts ?? 0) > 0;
+                  const locked = !unlocked;
 
                   return (
-                    <div 
-                      key={problem.id} 
-                      className="relative pb-8 last:pb-0"
-                      style={{ animationDelay: `${0.3 + index * 0.08}s` }}
-                    >
-                      {/* Connection Line */}
-                      {!isLast && (
-                        <div 
-                          className={`absolute left-[22px] top-14 w-0.5 h-12 transition-all duration-500 ${
-                            isSolved ? "bg-secondary" : "bg-primary"
-                          }`} 
-                        />
+                    <div key={problem.id}>
+                      {locked && worldUnlocked && index === firstLockedIndex(worldProblems, progress, isUnlocked) && (
+                        <div className="mb-2 flex items-center gap-2 px-2 text-xs font-semibold text-muted-foreground">
+                          <Icon name="Lock" size={13} />
+                          Complete{" "}
+                          <span className="text-accent">
+                            {prevProblemLabel(problem, worldProblems)}
+                          </span>{" "}
+                          to unlock this lesson
+                        </div>
                       )}
 
-                      {/* Lesson Card */}
                       <Link
-                        href={isLocked ? "/learn" : `/learn/${problem.id}`}
-                        className={`block ${isLocked ? "pointer-events-none" : ""}`}
+                        href={locked ? "/learn" : `/learn/${problem.id}`}
+                        onClick={(e) => {
+                          if (locked) e.preventDefault();
+                        }}
+                        aria-disabled={locked}
+                        className={cn(
+                          "flex w-full items-center gap-4 rounded-2xl p-4 transition-all",
+                          locked
+                            ? "bg-white/50 opacity-60"
+                            : "bg-white shadow-md shadow-black/5 hover:shadow-lg hover:-translate-y-0.5"
+                        )}
                       >
-                        <div 
-                          className={`relative bg-white rounded-2xl p-4 shadow-lg shadow-black/15 transition-all duration-300 ${
-                            isCurrent
-                              ? "shadow-lg shadow-black/20 ring-2 ring-primary"
-                              : isSolved
-                              ? ""
-                              : isLocked
-                              ? "opacity-50"
-                              : ""
-                          } ${!isLocked ? "hover:shadow-lg hover:-translate-y-0.5" : ""}`}
+                        <span
+                          className={cn(
+                            "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-extrabold",
+                            solved
+                              ? "bg-emerald-100 text-emerald-600"
+                              : inProgress
+                                ? "bg-primary text-foreground"
+                                : "bg-secondary text-foreground"
+                          )}
                         >
-                          <div className="flex items-center gap-4">
-                            {/* Status Icon */}
-                            <div className="absolute -left-12 top-1/2 -translate-y-1/2">
-                              {isLocked ? (
-                                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center transition-transform duration-300">
-                                  <Icon name="Lock" size={18} className="text-slate-400" />
-                                </div>
-                              ) : isSolved ? (
-                                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-md shadow-black/20 transition-all duration-300 hover:scale-110">
-                                  <Icon name="CheckCircle" size={22} className="text-foreground" />
-                                </div>
-                              ) : isInProgress ? (
-                                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center transition-transform duration-300 hover:scale-110 animate-pulse-soft">
-                                  <Icon name="PlayCircle" size={18} className="text-amber-600" />
-                                </div>
-                              ) : isCurrent ? (
-                                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shadow-md shadow-black/20 transition-transform duration-300 hover:scale-110 animate-pulse-soft">
-                                  <span className="text-base font-bold text-foreground">{problem.lessonOrder}</span>
-                                </div>
-                              ) : (
-                                <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center transition-transform duration-300 hover:scale-110">
-                                  <span className="text-base font-bold text-foreground">{problem.lessonOrder}</span>
-                                </div>
+                          {solved ? (
+                            <Icon name="Check" size={20} />
+                          ) : locked ? (
+                            <Icon name="Lock" size={18} className="text-muted-foreground/50" />
+                          ) : (
+                            String(index + 1).padStart(2, "0")
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3
+                              className={cn(
+                                "truncate text-sm font-bold",
+                                locked ? "text-muted-foreground" : "text-foreground"
                               )}
-                            </div>
-
-                            {/* Content */}
-                            <div className="flex-1 min-w-0 pl-2">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                  Lesson {String(problem.lessonOrder).padStart(2, "0")}
-                                </span>
-                              </div>
-                              <h3 className="font-bold text-slate-700 mb-0.5">{problem.title}</h3>
-                              <p className="text-xs text-slate-400 line-clamp-1">
-                                {problem.description.split(".")[0]}
-                              </p>
-                              {problem.concepts.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {problem.concepts.slice(0, 3).map((concept) => (
-                                    <span key={concept} className="px-2 py-0.5 rounded-full bg-background text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                      {concept}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Study Arrow */}
-                            <div className="flex-shrink-0 flex items-center gap-2">
-                              {!isLocked && (
-                                <span className="text-xs font-bold text-slate-400 group-hover:text-foreground transition-colors">
-                                  Study
-                                  <Icon name="ChevronRight" size={18} className="inline text-slate-300 transition-transform duration-300 group-hover:translate-x-1 ml-0.5" />
-                                </span>
-                              )}
-                            </div>
+                            >
+                              Lesson {problem.lessonOrder} · {problem.title}
+                            </h3>
+                            <Badge variant="secondary" className={DIFFICULTY_STYLE[problem.difficulty]}>
+                              {problem.difficulty}
+                            </Badge>
                           </div>
-
-                          {/* Current Lesson Glow */}
-                          {isCurrent && (
-                            <div className="absolute -inset-0.5 bg-secondary rounded-2xl opacity-20 blur-lg -z-10 animate-pulse-soft" />
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {problem.description}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-xs font-bold text-accent tabular-nums">
+                            +{problem.xpReward} XP
+                          </p>
+                          {solved && (
+                            <p className="text-[11px] font-semibold text-emerald-600">
+                              Completed
+                            </p>
+                          )}
+                          {inProgress && !solved && (
+                            <p className="text-[11px] font-semibold text-accent">
+                              In progress
+                            </p>
                           )}
                         </div>
+                        {!locked && !solved && (
+                          <Icon name="ChevronRight" size={18} className="shrink-0 text-muted-foreground/50" />
+                        )}
                       </Link>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </section>
           );
         })}
+      </div>
 
-        {/* Locked Worlds Section */}
-        {worlds.some(w => !w.unlocked) && (
-          <div className="text-center py-8 animate-fade-in-up opacity-0" style={{ animationFillMode: "forwards" }}>
-            <div className="inline-flex items-center gap-2 text-slate-400 text-sm">
-              <Icon name="Lock" size={16} />
-              <span>More worlds unlock as you progress</span>
-            </div>
-          </div>
-        )}
+      <div className="rounded-2xl border border-dashed border-border bg-white/60 p-4 text-center text-xs text-muted-foreground">
+        Lessons are written for <span className="font-bold text-foreground">C++</span>.
+        Java and Python are available in the{" "}
+        <Link href="/ide" className="font-bold text-accent underline">
+          IDE
+        </Link>
+        .
       </div>
     </div>
   );
+}
+
+function firstLockedIndex(
+  worldProblems: Problem[],
+  progress: Record<string, { status?: string }>,
+  isUnlocked: (id: string) => boolean
+): number {
+  return worldProblems.findIndex((p) => !isUnlocked(p.id));
+}
+
+function prevProblemLabel(current: Problem, worldProblems: Problem[]): string {
+  const idx = worldProblems.findIndex((p) => p.id === current.id);
+  const prev = idx > 0 ? worldProblems[idx - 1] : worldProblems[0];
+  return prev?.title ?? "the previous lesson";
 }

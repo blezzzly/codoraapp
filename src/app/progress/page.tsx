@@ -1,266 +1,270 @@
 "use client";
 
+import { useMemo } from "react";
+import Link from "next/link";
 import { useApp } from "@/hooks/useApp";
 import { Icon } from "@/components/ui/icon";
-import { getLevelFromXP, formatDate } from "@/lib/utils";
-import { useState, useEffect } from "react";
+import { PageHeader, SectionHeader } from "@/components/ui/page-header";
+import { ProgressBar } from "@/components/ui/progress";
+import { LoadingState } from "@/components/ui/states";
+import { formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+
+const LEVEL_TITLES = [
+  "Rookie",
+  "Learner",
+  "Apprentice",
+  "Competent",
+  "Skilled",
+  "Advanced",
+  "Expert",
+  "Master",
+];
 
 export default function ProgressPage() {
-  const { profile, progress, achievements, worlds, problems } = useApp();
-  const [mounted, setMounted] = useState(false);
-  const [animatedXP, setAnimatedXP] = useState(0);
+  const {
+    profile,
+    progress,
+    achievements,
+    worlds,
+    problems,
+    solvedCount,
+    solvedChallenges,
+    xpIntoLevel,
+    xpToNextLevel,
+    isLoaded,
+  } = useApp();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    const duration = 1500;
-    const steps = 60;
-    const interval = duration / steps;
-    let currentStep = 0;
-
-    const timer = setInterval(() => {
-      currentStep++;
-      const progress_anim = currentStep / steps;
-      const easeOut = 1 - Math.pow(1 - progress_anim, 3);
-      setAnimatedXP(Math.floor(profile.xp * easeOut));
-      if (currentStep >= steps) {
-        clearInterval(timer);
-        setAnimatedXP(profile.xp);
-      }
-    }, interval);
-
-    return () => clearInterval(timer);
-  }, [mounted, profile.xp]);
-
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative w-16 h-16">
-            <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-50" />
-            <div className="relative w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-xl">
-              <Icon name="TrendingUp" size={28} className="text-foreground" />
-            </div>
-          </div>
-          <p className="text-slate-400 text-sm">Loading progress...</p>
-        </div>
-      </div>
+  const stats = useMemo(() => {
+    const attempts = Object.values(progress).reduce(
+      (acc, p) => acc + (p.attempts ?? 0),
+      0
     );
-  }
+    const accuracy =
+      attempts === 0 ? null : Math.round((solvedCount / Math.max(attempts, 1)) * 100);
+    return { attempts, accuracy };
+  }, [progress, solvedCount]);
 
-  const solvedProblems = Object.values(progress).filter(p => p.status === "solved");
-  const totalProblems = problems.length;
-  const completionRate = totalProblems > 0 ? Math.round((solvedProblems.length / totalProblems) * 100) : 0;
-  const unlockedAchievements = achievements.filter(a => a.unlocked);
-  const lockedAchievements = achievements.filter(a => !a.unlocked);
-  const level = getLevelFromXP(profile.xp);
+  const week = useMemo(() => {
+    const days: { day: string; count: number }[] = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const count = Object.values(progress).filter(
+        (p) =>
+          p.status === "solved" && p.completedAt
+            ? new Date(p.completedAt).toISOString().slice(0, 10) === key
+            : false
+      ).length;
+      days.push({
+        day: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()],
+        count,
+      });
+    }
+    return days;
+  }, [progress]);
+
+  const maxDay = Math.max(1, ...week.map((d) => d.count));
+  const levelProgress = xpToNextLevel > 0
+    ? Math.round((xpIntoLevel / xpToNextLevel) * 100)
+    : 100;
+  const levelTitle =
+    LEVEL_TITLES[Math.min(profile.level - 1, LEVEL_TITLES.length - 1)] ?? "Learner";
+
+  if (!isLoaded) return <LoadingState label="Loading your progress..." />;
+
+  const solvedLessons = problems.filter((p) => progress[p.id]?.status === "solved");
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <div className="bg-white sticky top-14 md:top-16 z-30 backdrop-blur-md bg-white/95">
-        <div className="max-w-2xl mx-auto px-4 py-5">
-          <div className="flex items-center gap-2">
-            <Icon name="TrendingUp" size={22} className="text-accent" />
-            <h1 className="text-xl font-bold text-slate-700">Your Progress</h1>
+    <div className="mx-auto max-w-2xl px-4 py-6 space-y-6">
+      <PageHeader icon="TrendingUp" title="Your progress" subtitle="Everything you've learned, in one place" />
+
+      {/* Level + XP card */}
+      <div className="rounded-3xl bg-white p-6 shadow-lg shadow-black/10 animate-fade-in-up">
+        <div className="flex items-center gap-4">
+          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-primary shadow-lg shadow-black/10">
+            <Icon name="Zap" size={30} className="text-foreground" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-2xl font-extrabold text-foreground tabular-nums">
+              {profile.xp}
+              <span className="text-sm font-bold text-muted-foreground"> XP</span>
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Level {profile.level} · {levelTitle}
+            </p>
           </div>
-          <p className="text-sm text-slate-400 mt-0.5">Watch yourself grow, day by day</p>
+          <div className="shrink-0 text-right">
+            <p className="text-xs font-bold text-muted-foreground">
+              {xpToNextLevel > 0
+                ? `Lv ${profile.level + 1} in ${xpToNextLevel - xpIntoLevel} XP`
+                : "Max level"}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4">
+          <ProgressBar value={levelProgress} label={`Level ${profile.level} progress`} />
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Profile Card */}
-        <div className="animate-fade-in-up opacity-0" style={{ animationFillMode: "forwards" }}>
-          <div className="bg-white rounded-3xl p-6 text-foreground shadow-xl shadow-black/20 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
-            <div className="relative">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 rounded-2xl bg-white/40 backdrop-blur-sm flex items-center justify-center shadow-lg">
-                  <div className="text-center">
-                    <p className="text-[10px] text-foreground/70 uppercase tracking-wider">Level</p>
-                    <p className="text-2xl font-bold">{level}</p>
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-xl font-bold">codora Learner</h2>
-                  <p className="text-foreground/70 text-sm">Member since {formatDate(profile.joinedAt)}</p>
-                </div>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { icon: "CheckCircle", label: "Solved", value: String(solvedCount), bg: "bg-emerald-100", fg: "text-emerald-600" },
+          { icon: "Flame", label: "Streak", value: String(profile.streak), bg: "bg-amber-100", fg: "text-amber-600" },
+          { icon: "Trophy", label: "Challenges", value: String(solvedChallenges.length), bg: "bg-secondary", fg: "text-accent" },
+        ].map((s) => (
+          <div key={s.label} className="rounded-2xl bg-white p-4 text-center shadow-md shadow-black/5">
+            <span className={cn("mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl", s.bg)}>
+              <Icon name={s.icon} size={19} className={s.fg} />
+            </span>
+            <p className="text-2xl font-extrabold text-foreground tabular-nums">{s.value}</p>
+            <p className="text-xs text-muted-foreground">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Weekly activity */}
+      <section>
+        <SectionHeader icon="CalendarDays" title="Solved over the last 7 days" />
+        <div className="rounded-3xl bg-white p-5 shadow-md shadow-black/5">
+          <div className="flex items-end justify-between gap-2">
+            {week.map((d, i) => (
+              <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
+                <span className="flex h-24 w-full items-end justify-center overflow-hidden rounded-xl bg-background/60">
+                  <div
+                    className={cn(
+                      "w-2/3 rounded-t-md",
+                      d.count > 0 ? "bg-primary" : "bg-border"
+                    )}
+                    style={{
+                      height: `${Math.max(d.count > 0 ? 14 : 4, (d.count / maxDay) * 88)}%`,
+                    }}
+                    title={`${d.count} solved on ${d.day}`}
+                  />
+                </span>
+                <span className="text-[10px] font-bold text-muted-foreground">
+                  {d.day}
+                </span>
               </div>
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-1.5">
-                  <Icon name="Flame" size={16} className="text-orange-300" />
-                  <span className="font-semibold">{profile.streak} day streak</span>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
+          {stats.accuracy !== null && (
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              Check accuracy:{" "}
+              <span className="font-bold text-foreground">{stats.accuracy}%</span>{" "}
+              ({solvedCount} solved across {stats.attempts} attempts)
+            </p>
+          )}
         </div>
+      </section>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3 animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s", animationFillMode: "forwards" }}>
-          <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-            <div className="w-11 h-11 mx-auto mb-2 rounded-xl bg-amber-50 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-              <Icon name="Trophy" size={20} className="text-amber-500" />
-            </div>
-            <p className="text-2xl font-bold text-slate-700 tabular-nums">{solvedProblems.length}</p>
-            <p className="text-xs text-slate-400">Solved</p>
-          </div>
-          <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-            <div className="w-11 h-11 mx-auto mb-2 rounded-xl bg-background flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-              <Icon name="Zap" size={20} className="text-accent" />
-            </div>
-            <p className="text-2xl font-bold text-slate-700 tabular-nums">{animatedXP}</p>
-            <p className="text-xs text-slate-400">Total XP</p>
-          </div>
-          <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-            <div className="w-11 h-11 mx-auto mb-2 rounded-xl bg-violet-50 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-              <Icon name="Award" size={20} className="text-violet-500" />
-            </div>
-            <p className="text-2xl font-bold text-slate-700 tabular-nums">{unlockedAchievements.length}</p>
-            <p className="text-xs text-slate-400">Badges</p>
-          </div>
-        </div>
-
-        {/* Mastery */}
-        <div className="animate-fade-in-up opacity-0" style={{ animationDelay: "0.2s", animationFillMode: "forwards" }}>
-          <div className="bg-white rounded-2xl p-5 shadow-lg shadow-black/15 hover:shadow-lg transition-shadow duration-300">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="font-bold text-slate-700">Overall Mastery</h3>
-                <p className="text-xs text-slate-400">Your overall coding knowledge</p>
-              </div>
-              <div className="text-3xl font-bold text-accent tabular-nums">{completionRate}%</div>
-            </div>
-            <div className="relative h-3 bg-secondary rounded-full overflow-hidden">
-              <div 
-                className="absolute inset-y-0 left-0 bg-secondary rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${completionRate}%` }}
-              />
-              <div 
-                className="absolute inset-y-0 left-0 w-8 bg-white/30 rounded-full blur-sm"
-                style={{ width: `${completionRate}%`, transition: "width 1s ease-out" }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* World Progress */}
-        <div className="animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s", animationFillMode: "forwards" }}>
-          <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
-            <Icon name="Star" size={16} className="text-accent" />
-            World Progress
-          </h3>
-          <div className="space-y-2">
-            {worlds.map((world, idx) => {
-              const worldProblems = problems.filter(p => p.world === world.id);
-              const solvedInWorld = worldProblems.filter(p => progress[p.id]?.status === "solved").length;
-              const progressPercent = worldProblems.length > 0 ? Math.round((solvedInWorld / worldProblems.length) * 100) : 0;
-
-              return (
-                <div 
-                  key={world.id} 
-                  className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
-                  style={{ animationDelay: `${0.4 + idx * 0.1}s` }}
+      {/* Worlds */}
+      <section>
+        <SectionHeader icon="Map" title="Course mastery" action={
+          <Link href="/learn" className="text-xs font-bold text-accent">
+            View path
+          </Link>
+        } />
+        <div className="space-y-3">
+          {worlds.map((world) => (
+            <div key={world.id} className="rounded-2xl bg-white p-4 shadow-md shadow-black/5">
+              <div className="mb-2 flex items-center gap-3">
+                <span
+                  className="flex h-10 w-10 items-center justify-center rounded-xl"
+                  style={{ backgroundColor: world.color }}
                 >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div 
-                      className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-300"
-                      style={{ backgroundColor: `${world.color}20` }}
-                    >
-                      <Icon name={world.icon} size={24} className="text-foreground" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-semibold text-slate-700 text-sm">{world.title}</span>
-                        <span className="text-xs text-foreground font-bold tabular-nums">{progressPercent}%</span>
-                      </div>
-                      <p className="text-xs text-slate-400 tabular-nums">{solvedInWorld} of {worldProblems.length} problems</p>
-                    </div>
+                  <Icon
+                    name={world.icon}
+                    size={20}
+                    className={world.id === "world-3" ? "text-primary" : "text-foreground"}
+                  />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-foreground">
+                    World {world.order}: {world.title}
+                  </p>
+                </div>
+                <span className="text-sm font-extrabold text-foreground tabular-nums">
+                  {world.mastery}%
+                </span>
+              </div>
+              <ProgressBar value={world.mastery} />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Achievements */}
+      <section>
+        <SectionHeader icon="Award" title="Achievements" action={
+          <span className="text-xs font-bold text-muted-foreground">
+            {achievements.filter((a) => a.unlocked).length}/{achievements.length}
+          </span>
+        } />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {achievements.map((a) => (
+            <div
+              key={a.id}
+              className={cn(
+                "rounded-2xl p-4 text-center transition-all",
+                a.unlocked ? "bg-white shadow-md shadow-black/5" : "bg-white/50 opacity-60"
+              )}
+              title={a.description}
+            >
+              <span
+                className={cn(
+                  "mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-2xl",
+                  a.unlocked ? "bg-primary text-foreground" : "bg-secondary text-muted-foreground"
+                )}
+              >
+                <Icon name={a.unlocked ? a.icon : "Lock"} size={22} />
+              </span>
+              <p className="text-xs font-bold text-foreground">{a.title}</p>
+              <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                {a.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Solved lessons */}
+      <section>
+        <SectionHeader icon="BookOpen" title="Completed lessons" />
+        {solvedLessons.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-white/60 p-6 text-center">
+            <p className="text-sm font-semibold text-muted-foreground">
+              Solve a lesson to see it here.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {solvedLessons.map((p) => {
+              const st = progress[p.id];
+              return (
+                <div key={p.id} className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm shadow-black/5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                    <Icon name="Check" size={17} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-foreground">{p.title}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Lesson {p.lessonOrder}
+                      {st?.completedAt ? ` · ${formatDate(st.completedAt)}` : ""}
+                    </p>
                   </div>
-                  <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="absolute inset-y-0 left-0 h-full bg-secondary rounded-full transition-all duration-700 ease-out"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
+                  <span className="shrink-0 text-xs font-bold text-accent tabular-nums">
+                    +{p.xpReward} XP
+                  </span>
                 </div>
               );
             })}
           </div>
-        </div>
-
-        {/* Achievements */}
-        <div className="animate-fade-in-up opacity-0" style={{ animationDelay: "0.5s", animationFillMode: "forwards" }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-slate-700 flex items-center gap-2">
-              <Icon name="Sparkles" size={16} className="text-accent" />
-              Achievements
-            </h3>
-            <span className="text-xs text-slate-400 tabular-nums">
-              {unlockedAchievements.length} / {achievements.length}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {unlockedAchievements.slice(0, 6).map((achievement, idx) => (
-              <div
-                key={achievement.id}
-                className="group bg-background rounded-2xl p-3 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300 animate-scale-in"
-                style={{ animationDelay: `${0.6 + idx * 0.05}s` }}
-              >
-                <Icon name={achievement.icon} size={24} className="mx-auto mb-1 text-accent group-hover:scale-110 transition-transform duration-300" />
-                <p className="text-[10px] font-bold text-foreground leading-tight">{achievement.title}</p>
-              </div>
-            ))}
-            {lockedAchievements.slice(0, 3).map((achievement, idx) => (
-              <div
-                key={achievement.id}
-                className="bg-slate-50 rounded-2xl p-3 text-center animate-scale-in"
-                style={{ animationDelay: `${0.6 + idx * 0.05}s` }}
-              >
-                <div className="w-6 h-6 mx-auto mb-1 rounded-full bg-slate-200 flex items-center justify-center">
-                  <Icon name="Lock" size={12} className="text-slate-400" />
-                </div>
-                <p className="text-[10px] font-medium text-slate-400 leading-tight">{achievement.title}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Journey Stats */}
-        <div className="animate-fade-in-up opacity-0" style={{ animationDelay: "0.6s", animationFillMode: "forwards" }}>
-          <div className="bg-white rounded-2xl p-5 shadow-lg shadow-black/15 hover:shadow-lg transition-shadow duration-300">
-            <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
-              <Icon name="Info" size={16} className="text-accent" />
-              Journey Stats
-            </h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center py-2 border-b border-primary">
-                <span className="text-sm text-slate-400">Member Since</span>
-                <span className="font-semibold text-slate-700">{formatDate(profile.joinedAt)}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-primary">
-                <span className="text-sm text-slate-400">Current Level</span>
-                <span className="font-semibold text-foreground">Level {level}</span>
-              </div>
-              <div className="flex justify-between items-center py-2 border-b border-primary">
-                <span className="text-sm text-slate-400">Longest Streak</span>
-                <span className="font-semibold text-slate-700 flex items-center gap-1">
-                  <Icon name="Flame" size={16} className="text-orange-500" />
-                  {profile.streak} days
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-2">
-                <span className="text-sm text-slate-400">Total Submissions</span>
-                <span className="font-semibold text-slate-700 tabular-nums">{profile.totalSubmissions}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        )}
+      </section>
     </div>
   );
 }

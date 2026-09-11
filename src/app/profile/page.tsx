@@ -1,210 +1,228 @@
 "use client";
 
+import React, { useState } from "react";
 import Link from "next/link";
 import { useApp } from "@/hooks/useApp";
 import { Icon } from "@/components/ui/icon";
-import { getLevelFromXP, getXPForNextLevel, formatDate } from "@/lib/utils";
-import { useState, useEffect } from "react";
+import { PageHeader } from "@/components/ui/page-header";
+import { ProgressBar } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { LoadingState } from "@/components/ui/states";
+import { formatDate } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+const LEVEL_TITLES = [
+  "Rookie",
+  "Learner",
+  "Apprentice",
+  "Competent",
+  "Skilled",
+  "Advanced",
+  "Expert",
+  "Master",
+];
+
+const AVATAR_COLORS = [
+  "bg-primary text-foreground",
+  "bg-background text-accent",
+  "bg-secondary text-foreground",
+];
 
 export default function ProfilePage() {
-  const { profile, progress, achievements } = useApp();
-  const [mounted, setMounted] = useState(false);
+  const {
+    profile,
+    progress,
+    achievements,
+    solvedCount,
+    xpIntoLevel,
+    xpToNextLevel,
+    setUsername,
+    updateDailyGoal,
+    isLoaded,
+  } = useApp();
+  const { show } = useToast();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(profile.username);
+  const [goalMenu, setGoalMenu] = useState(false);
 
-  const solvedCount = Object.values(progress).filter(p => p.status === "solved").length;
-  const level = getLevelFromXP(profile.xp);
-  const xpIntoLevel = profile.xp % 100;
-  const unlockedAchievements = achievements.filter(a => a.unlocked);
+  const saveName = () => {
+    const trimmed = nameDraft.trim().slice(0, 20);
+    if (trimmed) {
+      setUsername(trimmed);
+      show({ title: "Username updated", variant: "success" });
+    } else {
+      setNameDraft(profile.username);
+    }
+    setEditingName(false);
+  };
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative w-16 h-16">
-            <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-50" />
-            <div className="relative w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-xl">
-              <Icon name="User" size={28} className="text-foreground" />
-            </div>
-          </div>
-          <p className="text-slate-400 text-sm">Loading profile...</p>
-        </div>
-      </div>
-    );
-  }
+  if (!isLoaded) return <LoadingState label="Loading profile..." />;
+
+  const level = profile.level;
+  const levelTitle =
+    LEVEL_TITLES[Math.min(level - 1, LEVEL_TITLES.length - 1)] ?? "Learner";
+  const levelProgress =
+    xpToNextLevel > 0 ? Math.round((xpIntoLevel / xpToNextLevel) * 100) : 100;
+  const unlocked = achievements.filter((a) => a.unlocked);
+  const initial = (profile.username.trim()[0] || "C").toUpperCase();
+  const avatarColor = AVATAR_COLORS[(profile.username.length + level) % AVATAR_COLORS.length];
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <div className="max-w-2xl mx-auto px-4 pt-6">
-        <div className="relative bg-white rounded-3xl p-6 shadow-lg shadow-black/15 overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-background rounded-full blur-3xl -z-0" />
-          <div className="relative flex items-center gap-4">
-            <div className="w-14 h-14 shrink-0 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-black/20">
-              <Icon name="User" size={26} className="text-foreground" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-700">Profile</h1>
-              <p className="text-sm text-slate-400">The student behind the code</p>
-            </div>
+    <div className="mx-auto max-w-2xl px-4 py-6 space-y-6">
+      <PageHeader icon="User" title="Profile" subtitle="Your learner identity" />
+
+      {/* Identity card */}
+      <div className="rounded-3xl bg-white p-6 shadow-lg shadow-black/10 animate-fade-in-up">
+        <div className="flex items-start gap-4">
+          <span className={cn("flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl text-2xl font-extrabold", avatarColor)}>
+            {initial}
+          </span>
+          <div className="min-w-0 flex-1">
+            {editingName ? (
+              <div className="flex items-center gap-2">
+                <input
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onBlur={saveName}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveName();
+                  }}
+                  autoFocus
+                  maxLength={20}
+                  className="h-10 flex-1 rounded-xl border border-primary bg-background px-3 text-base font-extrabold text-foreground outline-none"
+                  aria-label="Edit username"
+                />
+                <button
+                  onClick={saveName}
+                  className="flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-foreground"
+                >
+                  <Icon name="Check" size={15} /> Save
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-2xl font-extrabold text-foreground">
+                  {profile.username}
+                </h1>
+                <button
+                  onClick={() => {
+                    setEditingName(true);
+                    setNameDraft(profile.username);
+                  }}
+                  aria-label="Edit username"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-background hover:text-foreground"
+                >
+                  <Icon name="Pencil" size={15} />
+                </button>
+              </div>
+            )}
+            <p className="text-sm text-muted-foreground">
+              Level {level} · {levelTitle}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Joined {formatDate(profile.joinedAt)}
+            </p>
           </div>
+          <Badge variant="secondary" className="shrink-0">
+            <Icon name="Flame" size={13} className="mr-1 text-amber-500" />
+            {profile.streak} day streak
+          </Badge>
+        </div>
+        <div className="mt-4">
+          <ProgressBar value={levelProgress} label={`Level ${level} · ${xpIntoLevel}/${xpToNextLevel} XP`} />
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Identity Card */}
-        <div className="animate-fade-in-up opacity-0" style={{ animationFillMode: "forwards" }}>
-          <div className="relative bg-white rounded-3xl p-6 text-foreground shadow-xl shadow-black/20 overflow-hidden">
-            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
-            <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
-            <div className="relative">
-              <div className="flex items-center gap-4 mb-5">
-                <div className="w-16 h-16 rounded-2xl bg-white/40 backdrop-blur-sm flex items-center justify-center shadow-lg overflow-hidden">
-                  <img src="/codoralogo.png" alt="Codora" width={64} height={64} className="object-contain" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-bold">codora Learner</h2>
-                  <p className="text-foreground/70 text-sm">Member since {formatDate(profile.joinedAt)}</p>
-                </div>
-                <div className="w-16 h-16 shrink-0 rounded-2xl bg-white/40 backdrop-blur-sm flex items-center justify-center shadow-lg">
-                  <div className="text-center">
-                    <p className="text-[10px] text-foreground/70 uppercase tracking-wider">Level</p>
-                    <p className="text-2xl font-bold">{level}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 mb-5">
-                <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-3 text-center">
-                  <p className="text-2xl font-bold tabular-nums">{profile.streak}</p>
-                  <p className="text-[10px] text-foreground/70 uppercase tracking-wider font-semibold">Day Streak</p>
-                </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-3 text-center">
-                  <p className="text-2xl font-bold tabular-nums">{profile.xp}</p>
-                  <p className="text-[10px] text-foreground/70 uppercase tracking-wider font-semibold">Total XP</p>
-                </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-3 text-center">
-                  <p className="text-2xl font-bold tabular-nums">{profile.totalSubmissions}</p>
-                  <p className="text-[10px] text-foreground/70 uppercase tracking-wider font-semibold">Submissions</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-sm mb-1">
-                <span className="text-foreground/70">Level {level + 1} in {getXPForNextLevel(profile.xp)} XP</span>
-                <span className="font-semibold tabular-nums">{xpIntoLevel} / 100 XP</span>
-              </div>
-              <div className="relative h-3 bg-white/20 rounded-full overflow-hidden">
-                <div
-                  className="absolute inset-y-0 left-0 bg-secondary rounded-full transition-all duration-1000 ease-out"
-                  style={{ width: `${xpIntoLevel}%` }}
-                />
-                <div
-                  className="absolute inset-y-0 left-0 w-8 bg-white/30 rounded-full blur-sm"
-                  style={{ width: `${xpIntoLevel}%`, transition: "width 1s ease-out" }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300 animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s", animationFillMode: "forwards" }}>
-            <div className="w-11 h-11 mx-auto mb-2 rounded-xl bg-amber-50 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
-              <Icon name="Trophy" size={20} className="text-amber-500" />
-            </div>
-            <p className="text-2xl font-bold text-slate-700 tabular-nums">{solvedCount}</p>
-            <p className="text-xs text-slate-400 font-medium">Solved</p>
-          </div>
-          <div className="group bg-white rounded-2xl p-4 shadow-lg shadow-black/15 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300 animate-fade-in-up opacity-0" style={{ animationDelay: "0.15s", animationFillMode: "forwards" }}>
-            <div className="w-11 h-11 mx-auto mb-2 rounded-xl bg-violet-50 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
-              <Icon name="Award" size={20} className="text-violet-500" />
-            </div>
-            <p className="text-2xl font-bold text-slate-700 tabular-nums">{unlockedAchievements.length}</p>
-            <p className="text-xs text-slate-400 font-medium">Badges</p>
-          </div>
-        </div>
-
-        {/* Daily Goal */}
-        <div className="animate-fade-in-up opacity-0" style={{ animationDelay: "0.2s", animationFillMode: "forwards" }}>
-          <div className="bg-white rounded-2xl p-5 shadow-lg shadow-black/15 hover:shadow-lg transition-shadow duration-300">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Icon name="Target" size={16} className="text-accent" />
-                <h3 className="font-bold text-slate-700">Daily Goal</h3>
-              </div>
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${profile.dailyGoalCompleted ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"}`}>
-                {profile.dailyGoalCompleted ? "Completed" : `${solvedCount} / ${profile.dailyGoal} today`}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Achievements */}
-        <div className="animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s", animationFillMode: "forwards" }}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-slate-700 flex items-center gap-2">
-              <Icon name="Sparkles" size={16} className="text-accent" />
-              Achievements
-            </h3>
-            <span className="text-xs text-slate-400 tabular-nums">
-              {unlockedAchievements.length} / {achievements.length}
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { icon: "CheckCircle", label: "Solved", value: solvedCount, bg: "bg-emerald-100", fg: "text-emerald-600" },
+          { icon: "Zap", label: "XP", value: profile.xp, bg: "bg-primary/40", fg: "text-foreground" },
+          { icon: "Award", label: "Badges", value: unlocked.length, bg: "bg-secondary", fg: "text-accent" },
+          { icon: "History", label: "Attempts", value: Object.values(progress).reduce((acc, p) => acc + (p.attempts ?? 0), 0), bg: "bg-background", fg: "text-foreground" },
+        ].map((s) => (
+          <div key={s.label} className="rounded-2xl bg-white p-4 text-center shadow-md shadow-black/5">
+            <span className={cn("mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl", s.bg)}>
+              <Icon name={s.icon} size={19} className={s.fg} />
             </span>
+            <p className="text-xl font-extrabold text-foreground tabular-nums">{s.value}</p>
+            <p className="text-xs text-muted-foreground">{s.label}</p>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            {unlockedAchievements.slice(0, 6).map((achievement, idx) => (
-              <div
-                key={achievement.id}
-                className="group bg-background rounded-2xl p-3 text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300 animate-scale-in"
-                style={{ animationDelay: `${0.4 + idx * 0.05}s` }}
-              >
-                <Icon name={achievement.icon} size={24} className="mx-auto mb-1 text-accent group-hover:scale-110 transition-transform duration-300" />
-                <p className="text-[10px] font-bold text-foreground leading-tight">{achievement.title}</p>
-              </div>
-            ))}
-            {unlockedAchievements.length === 0 && (
-              <div className="col-span-3 bg-slate-50 rounded-2xl p-4 text-center">
-                <p className="text-xs text-slate-400">No badges yet. Keep solving!</p>
+        ))}
+      </div>
+
+      {/* Daily goal */}
+      <div className="rounded-3xl bg-white p-5 shadow-md shadow-black/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/40 text-foreground">
+              <Icon name="Target" size={20} />
+            </span>
+            <div>
+              <p className="text-sm font-bold text-foreground">Daily goal</p>
+              <p className="text-xs text-muted-foreground">
+                {profile.dailyGoal} problems per day
+              </p>
+            </div>
+          </div>
+          <div className="relative">
+            <button
+              onClick={() => setGoalMenu(!goalMenu)}
+              className="rounded-xl bg-secondary px-3 py-2 text-xs font-bold text-foreground"
+              aria-haspopup="menu"
+              aria-expanded={goalMenu}
+            >
+              Change
+            </button>
+            {goalMenu && (
+              <div className="absolute right-0 top-full z-10 mt-2 w-44 rounded-2xl bg-white py-1.5 shadow-xl ring-1 ring-black/5 animate-fade-in-down">
+                {[3, 5, 10].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => {
+                      updateDailyGoal(n);
+                      setGoalMenu(false);
+                      show({ title: `Daily goal set to ${n}`, variant: "success" });
+                    }}
+                    className={cn(
+                      "flex w-full items-center justify-between px-4 py-2 text-sm font-bold transition-colors hover:bg-background/60",
+                      profile.dailyGoal === n ? "text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    {n} problems
+                    {profile.dailyGoal === n && <Icon name="Check" size={14} className="text-accent" />}
+                  </button>
+                ))}
               </div>
             )}
           </div>
         </div>
+      </div>
 
-        {/* Quick Links */}
-        <div className="animate-fade-in-up opacity-0" style={{ animationDelay: "0.4s", animationFillMode: "forwards" }}>
-          <div className="grid grid-cols-3 gap-2 mb-2">
-            <Link
-              href="/home"
-              className="flex items-center justify-center gap-2 px-3 py-3 rounded-2xl bg-white shadow-lg shadow-black/15 text-sm font-semibold text-slate-600 hover:text-foreground hover:shadow-md transition-all duration-300"
-            >
-              <Icon name="Home" size={16} />
-              Home
-            </Link>
-            <Link
-              href="/community"
-              className="flex items-center justify-center gap-2 px-3 py-3 rounded-2xl bg-white shadow-lg shadow-black/15 text-sm font-semibold text-slate-600 hover:text-foreground hover:shadow-md transition-all duration-300"
-            >
-              <Icon name="MessagesSquare" size={16} />
-              Community
-            </Link>
-            <Link
-              href="/progress"
-              className="flex items-center justify-center gap-2 px-3 py-3 rounded-2xl bg-white shadow-lg shadow-black/15 text-sm font-semibold text-slate-600 hover:text-foreground hover:shadow-md transition-all duration-300"
-            >
-              <Icon name="TrendingUp" size={16} />
-              Progress
-            </Link>
-          </div>
+      {/* Quick links */}
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { href: "/progress", icon: "TrendingUp", label: "Progress report", desc: "Charts & mastery" },
+          { href: "/settings", icon: "Settings", label: "Settings", desc: "Language, data, more" },
+          { href: "/library", icon: "Library", label: "Code Library", desc: "Runnable examples" },
+          { href: "/challenges", icon: "Trophy", label: "Challenges", desc: "Weekly tasks" },
+        ].map((item) => (
           <Link
-            href="/settings"
-            className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-2xl bg-white shadow-lg shadow-black/15 text-sm font-semibold text-slate-600 hover:text-foreground hover:shadow-md transition-all duration-300"
+            key={item.href}
+            href={item.href}
+            className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-md shadow-black/5 transition-all hover:shadow-lg active:scale-[0.99]"
           >
-            <Icon name="Settings" size={16} />
-            Manage Settings
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-accent">
+              <Icon name={item.icon} size={20} />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-foreground">{item.label}</p>
+              <p className="truncate text-xs text-muted-foreground">{item.desc}</p>
+            </div>
           </Link>
-        </div>
+        ))}
       </div>
     </div>
   );

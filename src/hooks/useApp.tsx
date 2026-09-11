@@ -1,272 +1,410 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { worlds, problems } from "@/data/problems";
-import { achievements as defaultAchievements, checkAchievements } from "@/data/achievements";
-import type { UserProfile, StudentProgress, Achievement, ProblemStatus } from "@/types";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+  useMemo,
+} from "react";
+import { worlds as baseWorlds, problems } from "@/data/problems";
+import { achievementList, checkAchievements } from "@/data/achievements";
+import type {
+  UserProfile,
+  StudentProgress,
+  Achievement,
+  ProblemStatus,
+  World,
+  Problem,
+} from "@/types";
 import * as db from "@/lib/database";
-import { Icon } from "@/components/ui/icon";
-import { DEFAULT_LANGUAGE, isSupportedLanguage, LANGUAGES, LanguageId } from "@/lib/languages";
+import { getLevelFromXP, getDayKey, isToday, XP_PER_LEVEL } from "@/lib/utils";
+import { DEFAULT_LANGUAGE, isSupportedLanguage, LanguageId } from "@/lib/languages";
+import type { ActivityEntry, ExportBundle } from "@/lib/database";
+
+const defaultAchievements: Achievement[] = achievementList.map((a) => ({
+  ...a,
+  unlocked: false,
+}));
 
 interface AppContextType {
   profile: UserProfile;
   progress: Record<string, StudentProgress>;
   achievements: Achievement[];
-  worlds: typeof worlds;
-  problems: typeof problems;
-  isLoaded: boolean;
+  worlds: World[];
+  problems: Problem[];
   language: LanguageId;
+  solvedChallenges: string[];
+  isLoaded: boolean;
+  todaySolved: number;
+  dailyGoalComplete: boolean;
+  solvedCount: number;
+  level: number;
+  xpIntoLevel: number;
+  xpToNextLevel: number;
+  recentActivity: ActivityEntry[];
   setLanguage: (language: LanguageId) => void;
-  updateProgress: (problemId: string, status: ProblemStatus, code?: string) => Promise<void>;
-  addXP: (amount: number) => Promise<void>;
-  checkStreak: () => Promise<void>;
-  updateDailyGoal: (goal: number) => Promise<void>;
-  refreshData: () => Promise<void>;
+  setUsername: (username: string) => void;
+  updateProgress: (
+    problemId: string,
+    status: ProblemStatus,
+    code?: string,
+    lang?: string
+  ) => Promise<void>;
+  updateDailyGoal: (goal: number) => void;
+  markChallengeSolved: (challengeId: string) => void;
+  refreshData: () => void;
+  resetAllData: () => void;
+  exportData: () => ExportBundle;
+  importData: (input: unknown) => { ok: boolean; error?: string };
+  isUnlocked: (problemId: string) => boolean;
+  nextProblem: Problem;
 }
 
-const defaultProfile: UserProfile = {
+const defaultProfile: Omit<UserProfile, "lastActiveDay" | "username"> & {
+  username: string;
+  lastActiveDay: string;
+} = {
+  username: "Learner",
   xp: 0,
   level: 1,
   streak: 0,
-  lastActive: Date.now(),
-  joinedAt: Date.now(),
+  lastActiveDay: "",
+  joinedAt: 0,
   totalProblemsSolved: 0,
   totalSubmissions: 0,
   dailyGoal: 5,
-  dailyGoalCompleted: false,
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const LANGUAGE_KEY = "codora_selected_language";
-
-function loadSavedLanguage(): LanguageId {
-  if (typeof window === "undefined") return DEFAULT_LANGUAGE;
-  try {
-    const stored = localStorage.getItem(LANGUAGE_KEY);
-    if (stored && isSupportedLanguage(stored)) {
-      return stored as LanguageId;
-    }
-  } catch {}
-  return DEFAULT_LANGUAGE;
-}
+const LANGUAGES_ORDER: LanguageId[] = ["cpp", "java", "python"];
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<UserProfile>(defaultProfile);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [profile, setProfile] = useState<UserProfile>(() => ({
+    ...defaultProfile,
+    lastActiveDay: getDayKey(),
+    joinedAt: Date.now(),
+  }));
   const [progress, setProgress] = useState<Record<string, StudentProgress>>({});
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [solvedChallenges, setSolvedChallenges] = useState<string[]>([]);
   const [language, setLanguageState] = useState<LanguageId>(DEFAULT_LANGUAGE);
-
-  const setLanguage = useCallback((next: LanguageId) => {
-    setLanguageState(next);
-    try {
-      localStorage.setItem(LANGUAGE_KEY, next);
-    } catch {}
-  }, []);
+  const [recentActivity, setRecentActivity] = useState<ActivityEntry[]>([]);
 
   useEffect(() => {
-    setLanguageState(loadSavedLanguage());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProfile(db.getUserProfile());
+    setProgress(db.getProgress());
+    setSolvedChallenges(db.getSolvedChallenges());
+    setRecentActivity(db.getActivity());
+
+    const storedLang = db.getSavedLanguage();
+    if (storedLang && isSupportedLanguage(storedLang)) {
+      setLanguageState(storedLang as LanguageId);
+    }
+
+    const loaded = db.getAchievements();
+    setAchievements(loaded.length > 0 ? loaded : defaultAchievements);
+    setIsLoaded(true);
   }, []);
 
-  const refreshData = useCallback(async () => {
-    try {
-      const savedProfile = await db.getUserProfile();
-      if (savedProfile) {
-        setProfile(savedProfile);
+  const orderedProblems = useMemo(
+    () =>
+      [...problems].sort(
+        (a, b) => a.worldOrder - b.worldOrder || a.lessonOrder - b.lessonOrder
+      ),
+    []
+  );
+
+  const orderIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    orderedProblems.forEach((p, i) => map.set(p.id, i));
+    return map;
+  }, [orderedProblems]);
+
+  const isUnlocked = useCallback(
+    (problemId: string): boolean => {
+      const index = orderIndex.get(problemId);
+      if (index === undefined) return false;
+      if (index === 0) return true;
+      const prev = orderedProblems[index - 1];
+      return progress[prev.id]?.status === "solved";
+    },
+    [orderIndex, orderedProblems, progress]
+  );
+
+  const derivedWorlds: World[] = useMemo(() => {
+    return baseWorlds.map((world) => {
+      const worldProblems = problems.filter((p) => p.world === world.id);
+      const solvedInWorld = worldProblems.filter(
+        (p) => progress[p.id]?.status === "solved"
+      ).length;
+      const unlocked = worldProblems.some((p) => isUnlocked(p.id));
+      return {
+        ...world,
+        lessons: worldProblems.map((p) => p.id),
+        unlocked,
+        mastery:
+          worldProblems.length === 0
+            ? 0
+            : Math.round((solvedInWorld / worldProblems.length) * 100),
+      };
+    });
+  }, [problems, progress, isUnlocked]);
+
+  const solvedCount = useMemo(
+    () =>
+      Object.values(progress).filter((p) => p.status === "solved").length,
+    [progress]
+  );
+
+  const todaySolved = useMemo(
+    () =>
+      Object.values(progress).filter(
+        (p) => p.status === "solved" && p.completedAt && isToday(p.completedAt)
+      ).length,
+    [progress]
+  );
+
+  const dailyGoalComplete = profile.dailyGoal > 0 && todaySolved >= profile.dailyGoal;
+  const level = getLevelFromXP(profile.xp);
+  const xpIntoLevel = profile.xp % XP_PER_LEVEL;
+  const xpToNextLevel = XP_PER_LEVEL - xpIntoLevel;
+
+  const nextProblem = useMemo(() => {
+    return (
+      orderedProblems.find((p) => progress[p.id]?.status !== "solved") ??
+      orderedProblems[orderedProblems.length - 1]
+    );
+  }, [orderedProblems, progress]);
+
+  /** A single source of truth for streak updates. */
+  const applyDayActivity = useCallback(
+    (prev: UserProfile): UserProfile => {
+      const today = getDayKey();
+      if (prev.lastActiveDay === today) return prev;
+      let nextStreak = prev.streak;
+      // eslint-disable-next-line react-hooks/immutability
+      if (isYesterdayForDay(prev.lastActiveDay)) {
+        nextStreak = prev.streak + 1;
       } else {
-        await db.saveUserProfile(defaultProfile);
-        setProfile(defaultProfile);
+        nextStreak = 1;
       }
+      return { ...prev, streak: nextStreak, lastActiveDay: today };
+    },
+    []
+  );
 
-      const allProgress = await db.getAllProgress();
-      const progressMap: Record<string, StudentProgress> = {};
-      allProgress.forEach((p) => {
-        progressMap[p.problemId] = p;
-      });
-      setProgress(progressMap);
-
-      const savedAchievements = await db.getAchievements() as Achievement[];
-      if (savedAchievements.length > 0) {
-        setAchievements(savedAchievements);
-      } else {
-        await db.saveAchievements(defaultAchievements);
-        setAchievements(defaultAchievements);
-      }
-
-      const activeProfile = savedProfile ?? defaultProfile;
-      const synced = checkAchievements(defaultAchievements, activeProfile, progressMap);
-      await db.saveAchievements(synced);
-      setAchievements(synced);
-
-      setIsLoaded(true);
-    } catch (error) {
-      console.error("Failed to load data:", error);
-      setIsLoaded(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshData();
-  }, [refreshData]);
-
-  const updateProgress = useCallback(async (problemId: string, status: ProblemStatus, code?: string) => {
-    const existingProgress = progress[problemId];
-    const wasSolved = existingProgress?.status === "solved";
-    const newProgress: StudentProgress = {
-      problemId,
-      status,
-      attempts: (existingProgress?.attempts || 0) + 1,
-      completedAt: status === "solved" ? Date.now() : existingProgress?.completedAt,
-      lastAttemptCode: code,
-    };
-
+  function isYesterdayForDay(dayKey: string | undefined): boolean {
+    if (!dayKey || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) return false;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
     try {
-      await db.saveProgress(newProgress);
-    } catch (error) {
-      console.error("Failed to save progress:", error);
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(yesterday);
+      const year = parts.find((p) => p.type === "year")?.value ?? "";
+      const month = parts.find((p) => p.type === "month")?.value ?? "";
+      const day = parts.find((p) => p.type === "day")?.value ?? "";
+      return dayKey === `${year}-${month}-${day}`;
+    } catch {
+      return false;
     }
-    const mergedProgress = {
-      ...progress,
-      [problemId]: newProgress,
-    };
-    setProgress(mergedProgress);
+  }
 
-    let nextProfile: UserProfile = profile;
+  const updateProgress = useCallback(
+    async (problemId: string, status: ProblemStatus, code?: string, lang?: string) => {
+      setProfile((prevProfile) => {
+        const existing = progress[problemId];
+        const wasSolved = existing?.status === "solved";
 
-    if (status === "solved" && !wasSolved) {
-      const problem = problems.find((p) => p.id === problemId);
-      if (problem) {
-        const newXP = nextProfile.xp + problem.xpReward;
-        nextProfile = {
-          ...nextProfile,
-          xp: newXP,
-          level: Math.floor(newXP / 100) + 1,
-          totalProblemsSolved: nextProfile.totalProblemsSolved + 1,
-          totalSubmissions: nextProfile.totalSubmissions + 1,
-          lastActive: Date.now(),
+        const problem = problems.find((p) => p.id === problemId);
+        const earned = status === "solved" && !wasSolved ? problem?.xpReward ?? 0 : 0;
+        const withStreak = status === "solved" ? applyDayActivity(prevProfile) : prevProfile;
+        const nextProfile: UserProfile = {
+          ...withStreak,
+          xp: withStreak.xp + earned,
+          level: getLevelFromXP(withStreak.xp + earned),
+          totalSubmissions: withStreak.totalSubmissions + 1,
+          totalProblemsSolved: wasSolved
+            ? withStreak.totalProblemsSolved
+            : status === "solved"
+              ? withStreak.totalProblemsSolved + 1
+              : withStreak.totalProblemsSolved,
         };
-        setProfile(nextProfile);
-        try {
-          await db.saveUserProfile(nextProfile);
-        } catch (error) {
-          console.error("Failed to save profile:", error);
+        db.saveUserProfile(nextProfile);
+        return nextProfile;
+      });
+
+      setProgress((prev) => {
+        const existing = prev[problemId];
+        const next: Record<string, StudentProgress> = {
+          ...prev,
+          [problemId]: {
+            problemId,
+            status,
+            attempts: (existing?.attempts ?? 0) + 1,
+            completedAt:
+              status === "solved"
+                ? existing?.completedAt ?? Date.now()
+                : existing?.completedAt,
+            lastAttemptCode: code ?? existing?.lastAttemptCode,
+            language: lang ?? existing?.language,
+          },
+        };
+        db.saveProgress(next);
+
+        if (status === "solved") {
+          db.addActivity({
+            type: "solved",
+            label: problems.find((p) => p.id === problemId)?.title ?? problemId,
+            detail: `+${problems.find((p) => p.id === problemId)?.xpReward ?? 0} XP`,
+          });
+          setRecentActivity(db.getActivity());
         }
-      }
-    } else if (status !== "solved") {
-      nextProfile = {
-        ...nextProfile,
-        totalSubmissions: nextProfile.totalSubmissions + 1,
-      };
-      setProfile(nextProfile);
-      try {
-        await db.saveUserProfile(nextProfile);
-      } catch (error) {
-        console.error("Failed to save profile:", error);
-      }
-    }
-
-    const synced = checkAchievements(defaultAchievements, nextProfile, mergedProgress);
-    setAchievements(synced);
-    try {
-      await db.saveAchievements(synced);
-    } catch (error) {
-      console.error("Failed to sync achievements:", error);
-    }
-  }, [progress, profile, problems]);
-
-  const addXP = useCallback(async (amount: number) => {
-    setProfile((prev) => {
-      const newXP = prev.xp + amount;
-      const newLevel = Math.floor(newXP / 100) + 1;
-      const updatedProfile = {
-        ...prev,
-        xp: newXP,
-        level: newLevel,
-        lastActive: Date.now(),
-      };
-      db.saveUserProfile(updatedProfile).catch(console.error);
-      return updatedProfile;
-    });
-  }, []);
-
-  const checkStreak = useCallback(async () => {
-    const now = Date.now();
-    const dayInMs = 24 * 60 * 60 * 1000;
-    setProfile((prev) => {
-      const lastActiveDay = Math.floor(prev.lastActive / dayInMs);
-      const nowDay = Math.floor(now / dayInMs);
-      let updatedProfile = prev;
-      if (nowDay > lastActiveDay + 1) {
-        updatedProfile = { ...prev, streak: 0, lastActive: now };
-      } else if (nowDay > lastActiveDay) {
-        updatedProfile = { ...prev, streak: prev.streak + 1, lastActive: now };
-      }
-      if (updatedProfile !== prev) {
-        db.saveUserProfile(updatedProfile).catch(console.error);
-      }
-      return updatedProfile;
-    });
-  }, []);
+        return next;
+      });
+    },
+    [progress, problems, applyDayActivity]
+  );
 
   useEffect(() => {
-    if (isLoaded) {
-      checkStreak();
+    if (!isLoaded) return;
+    const next = checkAchievements(
+      achievements,
+      profile,
+      progress,
+      derivedWorlds,
+      solvedChallenges
+    );
+    if (JSON.stringify(next) !== JSON.stringify(achievements)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAchievements(next);
+      db.saveAchievements(next);
     }
-  }, [isLoaded, checkStreak]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, profile, progress, derivedWorlds, solvedChallenges]);
 
-  const updateDailyGoal = useCallback(async (goal: number) => {
+  const setLanguage = useCallback((lang: LanguageId) => {
+    setLanguageState(lang);
+    db.saveLanguage(lang);
+  }, []);
+
+  const setUsername = useCallback((username: string) => {
     setProfile((prev) => {
-      const updatedProfile = { ...prev, dailyGoal: goal };
-      db.saveUserProfile(updatedProfile).catch(console.error);
-      return updatedProfile;
+      const next = { ...prev, username: username.trim() || "Learner" };
+      db.saveUserProfile(next);
+      return next;
     });
   }, []);
 
-  const contextValue: AppContextType = {
+  const updateDailyGoal = useCallback((goal: number) => {
+    setProfile((prev) => {
+      const next = { ...prev, dailyGoal: [3, 5, 10].includes(goal) ? goal : 5 };
+      db.saveUserProfile(next);
+      return next;
+    });
+  }, []);
+
+  const markChallengeSolved = useCallback((challengeId: string) => {
+    db.markChallengeSolved(challengeId);
+    setSolvedChallenges(db.getSolvedChallenges());
+    db.addActivity({
+      type: "challenge",
+      label: "Weekly challenge completed",
+      detail: challengeId,
+    });
+    setRecentActivity(db.getActivity());
+  }, []);
+
+  const refreshData = useCallback(() => {
+    setProfile(db.getUserProfile());
+    setProgress(db.getProgress());
+    setSolvedChallenges(db.getSolvedChallenges());
+    setRecentActivity(db.getActivity());
+    const savedLang = db.getSavedLanguage();
+    if (savedLang && isSupportedLanguage(savedLang)) {
+      setLanguageState(savedLang as LanguageId);
+    }
+    const loaded = db.getAchievements();
+    setAchievements(loaded.length > 0 ? loaded : defaultAchievements);
+  }, []);
+
+  const resetAllData = useCallback(() => {
+    db.clearAllData();
+    setProfile({
+      username: "Learner",
+      xp: 0,
+      level: 1,
+      streak: 0,
+      lastActiveDay: getDayKey(),
+      joinedAt: Date.now(),
+      totalProblemsSolved: 0,
+      totalSubmissions: 0,
+      dailyGoal: 5,
+    });
+    setProgress({});
+    setAchievements(defaultAchievements);
+    setSolvedChallenges([]);
+    setRecentActivity([]);
+    setLanguageState(DEFAULT_LANGUAGE);
+  }, []);
+
+  const exportData = useCallback((): ExportBundle => db.exportAllData(), []);
+  const importData = useCallback(
+    (input: unknown): { ok: boolean; error?: string } => {
+      const result = db.importAllData(input);
+      if (result.ok) refreshData();
+      return result;
+    },
+    [refreshData]
+  );
+
+  const value: AppContextType = {
     profile,
     progress,
     achievements,
-    worlds,
-    problems,
-    isLoaded,
+    worlds: derivedWorlds,
+    problems: orderedProblems,
     language,
+    solvedChallenges,
+    isLoaded,
+    todaySolved,
+    dailyGoalComplete,
+    solvedCount,
+    level,
+    xpIntoLevel,
+    xpToNextLevel,
+    recentActivity,
     setLanguage,
+    setUsername,
     updateProgress,
-    addXP,
-    checkStreak,
     updateDailyGoal,
+    markChallengeSolved,
     refreshData,
+    resetAllData,
+    exportData,
+    importData,
+    isUnlocked,
+    nextProblem,
   };
 
-  return (
-    <AppContext.Provider value={contextValue}>
-      {!isLoaded ? (
-        <div className="min-h-screen bg-white flex items-center justify-center">
-          <div className="text-center">
-            <div className="relative w-16 h-16 mx-auto mb-3">
-              <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-50" />
-              <div className="relative w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-lg overflow-hidden">
-                <img src="/codoralogo.png" alt="Codora" width={64} height={64} className="object-contain" />
-              </div>
-            </div>
-            <h1 className="text-2xl font-bold text-slate-700">
-              codora <span className="text-primary font-light">{LANGUAGES[language].label}</span>
-            </h1>
-            <p className="text-slate-400 mt-1 text-xs">Loading your journey...</p>
-          </div>
-        </div>
-      ) : (
-        children
-      )}
-    </AppContext.Provider>
-  );
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
-export function useApp() {
-  const context = useContext(AppContext);
-  if (context === undefined) {
+export function useApp(): AppContextType {
+  const ctx = useContext(AppContext);
+  if (!ctx) {
     throw new Error("useApp must be used within an AppProvider");
   }
-  return context;
+  return ctx;
 }
+
+export { LANGUAGES_ORDER };

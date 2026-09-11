@@ -1039,7 +1039,7 @@ export function buildProblemLesson(problem: Problem): LessonContent {
     keyConcepts,
     example: {
       explanation: `A working solution for "${problem.title}". With the sample input${hasInput ? ` "${problem.example!.input}"` : ""}, it produces the output below.`,
-      code: problem.starterCode,
+      code: problem.solutionCode,
       output: problem.example?.output || problem.output,
     },
     studentTask: `${problem.description} (Input: ${problem.input}; Output: ${problem.output})`,

@@ -1,363 +1,476 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+"use client";
+
+import React, { useRef, useState, useCallback } from "react";
+import { Icon } from "@/components/ui/icon";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Check, Terminal as TerminalIcon } from "lucide-react";
+import { useOnline } from "@/hooks/useOnline";
+import { cn } from "@/lib/utils";
+import { LANGUAGES, LanguageId } from "@/lib/languages";
+import { getLanguageConfig } from "@/lib/languages";
+import { explainCompileError } from "@/lib/explainError";
+import type { TestCase } from "@/types";
 
-interface TestResult {
+export interface RunResult {
+  output: string;
+  success: boolean;
+  waitingForInput: boolean;
+  isError?: boolean;
+  errorDetail?: string;
+  explanation?: { hint: string; why: string; tryChecking: string; line?: number };
+}
+
+export interface CheckResult {
   passed: boolean;
-  index: number;
-  expectedOutput?: string;
-  actualOutput?: string;
+  compileError?: string;
+  explanation?: RunResult["explanation"];
+  results?: { index: number; passed: boolean; expectedOutput: string; actualOutput: string }[];
 }
 
-interface EditorProps {
-  initialCode: string;
+interface CodeEditorProps {
+  code: string;
   onCodeChange: (code: string) => void;
-  onRun: () => void;
-  onCheck: (results: TestResult[] | null) => void;
-  problemId: string;
-  testCases?: { input: string; expectedOutput: string }[];
-  language?: string;
+  language: LanguageId;
+  testCases?: TestCase[];
+  onCheckResult?: (result: boolean) => void;
+  sourceLabel?: string;
+  minHeightClass?: string;
 }
 
-export function Editor({
-  initialCode,
+export default function CodeEditor({
+  code,
   onCodeChange,
-  onRun,
-  onCheck,
-  problemId,
+  language,
   testCases,
-  language = "cpp",
-}: EditorProps) {
-  const [code, setCode] = useState(initialCode);
-  const [output, setOutput] = useState<string>("> Ready to run...");
-  const [waitingForInput, setWaitingForInput] = useState<boolean>(false);
-  const [consoleInput, setConsoleInput] = useState<string>("");
-  const [explanation, setExplanation] = useState<{ hint: string; why: string; tryChecking: string; line?: number } | null>(null);
-  const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [isChecking, setIsChecking] = useState<boolean>(false);
-  const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const consoleInputRef = useRef<HTMLInputElement>(null);
-  const waitingRef = useRef("");
+  onCheckResult,
+  sourceLabel,
+  minHeightClass = "min-h-64",
+}: CodeEditorProps) {
+  const online = useOnline();
   const { show } = useToast();
+  const [input, setInput] = useState("");
+  const [running, setRunning] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [runResult, setRunResult] = useState<RunResult | null>(null);
+  const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
+  const [copied, setCopied] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const config = getLanguageConfig(language);
 
-  const configLabel =
-    language === "java"
-      ? "Java"
-      : language === "python"
-        ? "Python"
-        : "C++";
+  const [prevLanguage, setPrevLanguage] = useState(language);
+  if (prevLanguage !== language) {
+    setPrevLanguage(language);
+    setRunResult(null);
+    setCheckResult(null);
+  }
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
+  const ensureOnline = (): boolean => {
+    if (!online) {
+      show({
+        title: "You're offline",
+        description: "Code execution requires an internet connection.",
+        variant: "destructive",
+      });
+      return false;
     }
-  }, [code]);
-
-  useEffect(() => {
-    setCode(initialCode);
-  }, [initialCode]);
-
-  const handleCodeChange = (value: string) => {
-    setCode(value);
-    onCodeChange(value);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const newValue = code.substring(0, start) + "  " + code.substring(end);
-      setCode(newValue);
-      onCodeChange(newValue);
-      setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = start + 2;
-      }, 0);
-    }
+    return true;
   };
 
   const handleRun = useCallback(async () => {
-    if (!code || code.trim().length === 0) {
-      setOutput("Error: No code to run");
+    if (running) return;
+    if (!ensureOnline()) return;
+    if (!code.trim()) {
+      show({ title: "Write some code first", variant: "default" });
       return;
     }
-
-    setWaitingForInput(false);
-    setConsoleInput("");
-    setIsRunning(true);
-    setOutput("Compiling...\n");
-
+    setRunning(true);
+    setRunResult(null);
     try {
-      const response = await fetch("/api/run-code", {
+      const res = await fetch("/api/run-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language }),
+        body: JSON.stringify({ code, language, input }),
       });
-
-      const result = await response.json();
-
-      if (result.waitingForInput) {
-        const partial = typeof result.output === "string" ? result.output : "";
-        waitingRef.current = partial.endsWith("\n") ? partial : `${partial}\n`;
-        setOutput(waitingRef.current || "Program is waiting for input.\n");
-        setWaitingForInput(true);
-        setTimeout(() => consoleInputRef.current?.focus(), 50);
-        setIsRunning(false);
+      const data = await res.json().catch(() => null);
+      if (res.status === 429) {
+        setRunResult({
+          output: "",
+          success: false,
+          waitingForInput: false,
+          isError: true,
+          errorDetail: "Too many requests. Please wait a moment and try again.",
+        });
         return;
       }
-
-      setOutput(result.output || "(no output)");
-      setExplanation(result.explanation || null);
-      onRun();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setOutput(
-        typeof navigator !== "undefined" && !navigator.onLine
-          ? "You're offline. Connect to the internet to run your code."
-          : `Error: ${message || "Failed to run program"}`
-      );
-    } finally {
-      setIsRunning(false);
-    }
-  }, [code, language, onRun]);
-
-  const submitConsoleInput = useCallback(async () => {
-    const value = consoleInput.trim();
-    setWaitingForInput(false);
-    setConsoleInput("");
-    setIsRunning(true);
-    setOutput(`${waitingRef.current}${value ? `> ${value}\n` : ""}Running...\n`);
-
-    try {
-      const response = await fetch("/api/run-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, input: value }),
-      });
-
-      const result = await response.json();
-      if (result.waitingForInput) {
-        const partial = typeof result.output === "string" ? result.output : "";
-        waitingRef.current = partial.endsWith("\n") ? partial : `${partial}\n`;
-        setOutput(waitingRef.current);
-        setWaitingForInput(true);
-        setTimeout(() => consoleInputRef.current?.focus(), 50);
+      if (!data) {
+        setRunResult({
+          output: "",
+          success: false,
+          waitingForInput: false,
+          isError: true,
+          errorDetail: "The code service returned an empty response. Try again.",
+        });
         return;
       }
-      setOutput(result.output || "(no output)");
-      setExplanation(result.explanation || null);
-      onRun();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setOutput(
-        typeof navigator !== "undefined" && !navigator.onLine
-          ? "You're offline. Connect to the internet to run your code."
-          : `Error: ${message || "Failed to run program"}`
-      );
+      if (data.success) {
+        setRunResult({
+          output: data.output ?? "",
+          success: true,
+          waitingForInput: !!data.waitingForInput,
+          isError: false,
+        });
+        if (data.waitingForInput) {
+          show({
+            title: "Your program is waiting for input",
+            description:
+              "Type something in the Input box, then press Run again.",
+          });
+        }
+      } else {
+        const explanation = data.explanation
+          ? {
+              hint: String(data.explanation?.hint ?? ""),
+              why: String(data.explanation?.why ?? ""),
+              tryChecking: String(data.explanation?.tryChecking ?? ""),
+              line: data.explanation?.line,
+            }
+          : explainCompileError(String(data.output ?? ""));
+        setRunResult({
+          output: data.output ?? "",
+          success: false,
+          waitingForInput: false,
+          isError: true,
+          errorDetail:
+            typeof data.errorType === "string" ? data.errorType : undefined,
+          explanation,
+        });
+      }
+    } catch (err) {
+      setRunResult({
+        output: "",
+        success: false,
+        waitingForInput: false,
+        isError: true,
+        errorDetail:
+          err instanceof TypeError
+            ? "Could not reach the code service."
+            : "Something went wrong while running your code.",
+      });
     } finally {
-      setIsRunning(false);
+      setRunning(false);
     }
-  }, [code, language, onRun, consoleInput]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, language, input, running, online]);
 
   const handleCheck = useCallback(async () => {
-    if (!testCases || testCases.length === 0) {
-      show({
-        title: "No Tests Available",
-        description: "Run the program to see output.",
-      });
+    if (checking) return;
+    if (!testCases || testCases.length === 0) return;
+    if (!code.trim()) {
+      show({ title: "Write some code first", variant: "default" });
       return;
     }
-
-    if (!code || code.trim().length === 0) {
-      setOutput("Error: No code to test");
-      return;
-    }
-
-    setIsChecking(true);
-    setTestResults([]);
-    setOutput("Compiling...\nRunning tests...\n");
-
+    if (!ensureOnline()) return;
+    setChecking(true);
+    setCheckResult(null);
     try {
-      const response = await fetch("/api/check-code", {
+      const res = await fetch("/api/check-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, testCases, language }),
+        body: JSON.stringify({ code, language, testCases }),
       });
-
-      const result = await response.json();
-
-      if (!result.success) {
-        setOutput(`Compilation error:\n${result.compileError || "Unknown error"}`);
-        setExplanation(result.explanation || null);
-        onCheck(null);
-        setIsChecking(false);
+      const data = await res.json().catch(() => null);
+      if (res.status === 429) {
+        setCheckResult({
+          passed: false,
+          compileError:
+            "Too many requests. Please wait a moment and try again.",
+        });
+        onCheckResult?.(false);
         return;
       }
-
-      const results: TestResult[] = (result.results || []).map(
-        (r: { passed: boolean; expectedOutput?: string; actualOutput?: string }, i: number) => ({
-          passed: r.passed,
-          index: i,
-          expectedOutput: r.expectedOutput,
-          actualOutput: r.actualOutput,
-        })
-      );
-
-      setTestResults(results);
-
-      const passedCount = results.filter((r) => r.passed).length;
-      let outputText =
-        results.length === 0
-          ? "No tests were run."
-          : `Ran ${results.length} tests.\n`;
-
-      results.forEach((r) => {
-        outputText += `\nTest ${r.index + 1}: ${r.passed ? "✓ PASS" : "✗ FAIL"}`;
-        if (!r.passed && r.expectedOutput !== undefined) {
-          outputText += `\n  expected: ${JSON.stringify(r.expectedOutput)}`;
-          outputText += `\n  got:      ${JSON.stringify(r.actualOutput ?? "")}`;
-        }
+      if (!data) {
+        setCheckResult({
+          passed: false,
+          compileError: "The code service returned an empty response. Try again.",
+        });
+        onCheckResult?.(false);
+        return;
+      }
+      if (data.compileError) {
+        setCheckResult({
+          passed: false,
+          compileError: String(data.compileError),
+          explanation: data.explanation
+            ? {
+                hint: String(data.explanation?.hint ?? ""),
+                why: String(data.explanation?.why ?? ""),
+                tryChecking: String(data.explanation?.tryChecking ?? ""),
+                line: data.explanation?.line,
+              }
+            : undefined,
+        });
+        onCheckResult?.(false);
+        return;
+      }
+      const results = Array.isArray(data.results) ? data.results : [];
+      const passed = results.length > 0 && results.every((r: { passed: boolean }) => r.passed);
+      setCheckResult({ passed, results });
+      onCheckResult?.(passed);
+    } catch (err) {
+      setCheckResult({
+        passed: false,
+        compileError:
+          err instanceof TypeError
+            ? "Could not reach the code service."
+            : "Something went wrong while checking your code.",
       });
-
-      outputText += `\n\n${passedCount}/${results.length} passed.`;
-      setOutput(outputText);
-      setExplanation(null);
-
-      onCheck(results);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setOutput(
-        typeof navigator !== "undefined" && !navigator.onLine
-          ? "You're offline. Connect to the internet to run your code."
-          : `Error: ${message || "Failed to run tests"}`
-      );
-      onCheck(null);
+      onCheckResult?.(false);
     } finally {
-      setIsChecking(false);
+      setChecking(false);
     }
-  }, [code, testCases, language, onCheck, show]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, language, testCases, checking, online]);
 
-  const lineCount = code.split("\n").length;
+  const reset = useCallback(() => {
+    onCodeChange(config.template);
+    setRunResult(null);
+    setCheckResult(null);
+  }, [config.template, onCodeChange]);
+
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      show({ title: "Code copied to clipboard", variant: "success" });
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      show({ title: "Could not copy the code", variant: "destructive" });
+    }
+  }, [code, show]);
+
+  const readsInput = config.readsInput.test(code);
 
   return (
-    <div className="editor-container">
-      <div className="bg-[#181825] border-b border-[#313244] px-3 py-2 flex items-center gap-2">
-        <button
-          onClick={handleRun}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            isRunning
-              ? "bg-gray-700 text-gray-400"
-              : "bg-emerald-600 text-white hover:bg-emerald-500"
-          }`}
-          disabled={isRunning || isChecking}
-        >
-          <Play className="w-3 h-3 fill-current" />
-          Run
-        </button>
-        <button
-          onClick={handleCheck}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            isRunning || isChecking || !testCases || testCases.length === 0
-              ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-              : "bg-amber-500 text-white hover:bg-amber-400"
-          }`}
-          disabled={isRunning || isChecking || !testCases || testCases.length === 0}
-        >
-          <Check className="w-3 h-3" />
-          Submit
-        </button>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-[10px] text-gray-500 uppercase tracking-wider">
-            {language.toUpperCase()}
+    <div className="overflow-hidden rounded-2xl border border-border bg-[#2d2438] shadow-lg shadow-black/10">
+      {/* Editor header */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#35294a] px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <Icon name="Code2" size={15} className="text-primary" />
+          <span className="text-xs font-bold uppercase tracking-wider text-primary/90">
+            {sourceLabel ?? `${LANGUAGES[language].label} Editor`}
           </span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={copy}
+            className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-bold text-primary/90 transition-colors hover:bg-white/10"
+          >
+            <Icon name={copied ? "Check" : "Copy"} size={13} />
+            {copied ? "Copied" : "Copy"}
+          </button>
+          <button
+            onClick={reset}
+            className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-bold text-primary/90 transition-colors hover:bg-white/10"
+          >
+            <Icon name="RotateCcw" size={13} />
+            Reset
+          </button>
+        </div>
       </div>
 
-      <div className="flex h-[280px] sm:h-[350px] w-full bg-[#1e1e2e]">
-        <div className="flex-shrink-0 bg-[#181825] text-gray-600 text-right px-2 py-3 font-mono text-xs leading-[1.5] select-none border-r border-[#313244] overflow-hidden">
-          {Array.from({ length: Math.max(lineCount, 20) }, (_, i) => (
-            <div key={i} className="h-[1.5em]">{i + 1}</div>
-          ))}
-        </div>
-        <textarea
-          ref={textareaRef}
-          value={code}
-          onChange={(e) => handleCodeChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          spellCheck={false}
-          className="flex-1 bg-[#1e1e2e] text-[#cdd6f4] font-mono text-sm leading-[1.5] p-3 resize-none focus:outline-none placeholder-gray-600 overflow-auto"
-          placeholder={`Type your ${configLabel} code here...`}
-        />
-      </div>
-
-      <div className="bg-[#181825] text-gray-300 px-4 py-3 font-mono text-xs min-h-[100px] max-h-[160px] overflow-auto border-t border-[#313244]">
-        <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[#313244]">
-          <TerminalIcon className="w-3 h-3 text-gray-500" />
-          <span className="text-gray-500 uppercase tracking-wider text-[10px]">Output</span>
-          {isRunning && (
-            <div className="ml-auto flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-emerald-500 text-[10px]">Running...</span>
-            </div>
-          )}
-          {waitingForInput && !isRunning && (
-            <div className="ml-auto flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-              <span className="text-amber-400 text-[10px]">Waiting for input</span>
-            </div>
-          )}
-        </div>
-        {explanation && (
-          <div className="mb-3 p-3 rounded-lg bg-rose-950/60 border border-rose-500/30">
-            <p className="text-rose-300 text-[11px] font-bold mb-1.5 uppercase tracking-wider">
-              {explanation.line ? `Heads up (line ${explanation.line})` : "What happened?"}
-            </p>
-            <p className="text-gray-200 text-xs mb-1">{explanation.hint}</p>
-            <p className="text-gray-400 text-[11px] mb-1"><span className="text-gray-300 font-semibold">Why? </span>{explanation.why}</p>
-            <p className="text-gray-400 text-[11px]"><span className="text-gray-300 font-semibold">Try checking: </span>{explanation.tryChecking}</p>
-          </div>
+      {/* Editor */}
+      <textarea
+        ref={textareaRef}
+        value={code}
+        onChange={(e) => onCodeChange(e.target.value)}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoComplete="off"
+        autoCorrect="off"
+        aria-label="Code editor"
+        className={cn(
+          "w-full resize-y bg-transparent p-4 font-mono text-[13.5px] leading-relaxed text-[#fce4ec] outline-none placeholder:text-white/30 selection:bg-primary/30",
+          minHeightClass
         )}
-        <pre className="whitespace-pre-wrap">{output}</pre>
-        {waitingForInput && !isRunning && (
-          <div className="mt-2 pt-2 border-t border-[#313244] flex items-center gap-2">
-            <span className="text-emerald-400 font-bold">{'>'}</span>
-            <input
-              ref={consoleInputRef}
-              value={consoleInput}
-              onChange={(e) => setConsoleInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  submitConsoleInput();
-                }
-              }}
-              placeholder="Type your input here, then Enter..."
-              className="flex-1 bg-[#11111b] text-gray-200 font-mono text-xs rounded-lg px-2 py-1.5 border border-[#313244] focus:outline-none focus:border-emerald-500"
+        placeholder={`// ${LANGUAGES[language].label} code goes here`}
+        onKeyDown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+            e.preventDefault();
+            handleRun();
+          }
+          if (e.key === "Tab") {
+            e.preventDefault();
+            const el = e.currentTarget;
+            const start = el.selectionStart;
+            const end = el.selectionEnd;
+            const next = code.slice(0, start) + "    " + code.slice(end);
+            onCodeChange(next);
+            window.requestAnimationFrame(() => {
+              el.selectionStart = el.selectionEnd = start + 4;
+            });
+          }
+        }}
+      />
+
+      {/* Input + actions */}
+      <div className="border-t border-white/10 bg-[#261e33] p-3">
+        <label className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-primary/70">
+          <span className="flex items-center gap-1.5">
+            <Icon name="ArrowDown" size={12} /> Input
+          </span>
+          {readsInput && (
+            <span className="normal-case tracking-normal text-amber-300/90">
+              Your code expects input
+            </span>
+          )}
+        </label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            aria-label="Program input (stdin)"
+            placeholder="Type program input here, e.g. 5 3"
+            className="h-10 flex-1 rounded-xl border border-white/10 bg-[#1d1628] px-3 text-[13px] text-[#fce4ec] outline-none placeholder:text-white/30 focus:border-primary/50"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleRun();
+            }}
+          />
+          <Button onClick={handleRun} disabled={running} className="h-10 sm:w-auto">
+            <Icon
+              name={running ? "RotateCw" : "Play"}
+              size={16}
+              className={running ? "animate-spin" : ""}
             />
-            <button
-              onClick={submitConsoleInput}
-              disabled={isRunning || isChecking}
-              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
+            {running ? "Running..." : "Run"}
+          </Button>
+          {testCases && testCases.length > 0 && (
+            <Button
+              onClick={handleCheck}
+              disabled={checking || running}
+              variant={testCases.length > 0 ? "outline" : "ghost"}
+              className="h-10 sm:w-auto"
             >
-              Send
+              <Icon
+                name={checking ? "RotateCw" : "CheckCircle"}
+                size={16}
+                className={checking ? "animate-spin" : ""}
+              />
+              {checking ? "Checking..." : "Check"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Output section */}
+      {(runResult || checkResult) && (
+        <div className="border-t border-white/10 bg-[#1d1628] p-4 animate-fade-in-up">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary/70">
+              <Icon name="Terminal" size={13} /> Output
+            </span>
+            <button
+              onClick={() => {
+                setRunResult(null);
+                setCheckResult(null);
+              }}
+              className="text-[11px] font-bold text-primary/70 hover:text-primary"
+            >
+              Clear
             </button>
           </div>
-        )}
-        {testResults.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-[#313244]">
-            <p className="text-gray-500 mb-1 text-[10px] uppercase tracking-wider">Tests</p>
-            {testResults.map((r, i) => (
-              <p key={i} className={r.passed ? "text-emerald-400" : "text-rose-400"}>
-                {r.passed ? "✓" : "✗"} Test {i + 1}: {r.passed ? "PASS" : "FAIL"}
-              </p>
-            ))}
-          </div>
-        )}
-      </div>
+
+          {checkResult && !checkResult.compileError && (
+            <div className="mb-3 space-y-2">
+              <div
+                className={cn(
+                  "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold",
+                  checkResult.passed
+                    ? "bg-emerald-500/15 text-emerald-300"
+                    : "bg-rose-500/15 text-rose-300"
+                )}
+              >
+                <Icon name={checkResult.passed ? "CheckCircle" : "XCircle"} size={18} />
+                {checkResult.passed
+                  ? "All test cases passed"
+                  : "Some test cases failed"}
+              </div>
+              {(checkResult.results ?? []).map((r) => (
+                <div
+                  key={r.index}
+                  className="rounded-xl border border-white/10 bg-[#261e33] p-3 text-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={cn(
+                        "font-bold",
+                        r.passed ? "text-emerald-300" : "text-rose-300"
+                      )}
+                    >
+                      {r.passed ? "Passed" : "Failed"} — Test {r.index + 1}
+                    </span>
+                    <Icon
+                      name={r.passed ? "Check" : "X"}
+                      size={14}
+                      className={r.passed ? "text-emerald-300" : "text-rose-300"}
+                    />
+                  </div>
+                  {!r.passed && (
+                    <div className="mt-2 space-y-1 text-primary/80">
+                      <p>Expected: {r.expectedOutput}</p>
+                      <p>Got: {r.actualOutput === "" ? "(empty output)" : r.actualOutput}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {runResult && (
+            <pre
+              className={cn(
+                "max-h-60 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-[#261e33] p-3 font-mono text-[12.5px] leading-relaxed",
+                runResult.isError ? "text-rose-300" : "text-[#fce4ec]"
+              )}
+            >
+              {runResult.output === "" && runResult.success && !runResult.waitingForInput
+                ? "(no output)"
+                : runResult.output}
+            </pre>
+          )}
+
+          {(checkResult?.compileError || runResult?.isError) && (
+            <div className="mt-2 space-y-2">
+              <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-rose-500/20 bg-rose-950/40 p-3 font-mono text-[12px] leading-relaxed text-rose-300">
+                {checkResult?.compileError || runResult?.errorDetail || runResult?.output}
+              </pre>
+              {(checkResult?.explanation || runResult?.explanation) && (
+                <div className="rounded-xl border border-primary/20 bg-primary/10 p-3 text-xs leading-relaxed text-primary-foreground">
+                  {(() => {
+                    const ex = checkResult?.explanation ?? runResult?.explanation;
+                    if (!ex) return null;
+                    return (
+                      <>
+                        <p className="font-bold flex items-center gap-1.5">
+                          <Icon name="Lightbulb" size={14} /> {ex.hint}
+                        </p>
+                        <p className="mt-1 opacity-90">{ex.why}</p>
+                        <p className="mt-1 opacity-90">Check: {ex.tryChecking}</p>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {runResult?.waitingForInput && (
+            <p className="mt-2 text-xs font-semibold text-amber-300">
+              Your program may be waiting for input. Enter something in the Input
+              box and run it again.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

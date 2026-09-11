@@ -1,97 +1,88 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/hooks/useApp";
 import { LANGUAGES, LanguageId } from "@/lib/languages";
 
-const LANGUAGES_ORDER: LanguageId[] = ["cpp", "java", "python"];
+const LANG_ORDER: LanguageId[] = ["cpp", "java", "python"];
 
 export default function MobileHeader() {
-  const { profile, language: activeLanguage, setLanguage } = useApp();
-  const [isLangOpen, setIsLangOpen] = useState(false);
+  const { profile, language, setLanguage } = useApp();
+  const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (langRef.current && !langRef.current.contains(event.target as Node)) {
-        setIsLangOpen(false);
+    function handleClickOutside(e: MouseEvent) {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setLangOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const activeLabel = LANGUAGES[activeLanguage as LanguageId]?.label;
-
   return (
-    <header className="fixed inset-x-0 top-0 z-50 md:hidden bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
-        <div className="relative" ref={langRef}>
-          <button
-            onClick={() => setIsLangOpen(!isLangOpen)}
-            className="group flex items-center gap-2 rounded-xl px-2 -mx-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 transition-colors hover:bg-background/50"
-            aria-expanded={isLangOpen}
-            aria-haspopup="listbox"
-          >
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-[0_3px_10px_-2px_rgba(0,0,0,0.2)] transition-transform duration-300 group-hover:scale-105 overflow-hidden">
-              <img src="/codoralogo.png" alt="Codora" width={32} height={32} className="object-contain" />
-            </span>
-            <span className="text-base font-bold tracking-tight text-slate-700">
-              codora <span className="text-muted-foreground">{activeLanguage === "cpp" ? "c++" : activeLabel}</span>
-            </span>
-            <Icon
-              name="ChevronDown"
-              size={14}
-              className={cn(
-                "text-muted-foreground transition-transform duration-300",
-                isLangOpen && "rotate-180",
-                activeLanguage !== "cpp" && "text-foreground font-bold"
-              )}
-            />
-          </button>
-
-          {isLangOpen && (
-            <div className="absolute left-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-lg ring-1 ring-black/5 py-2 animate-fade-in-down z-50">
-              <p className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Choose Language
-              </p>
-              {LANGUAGES_ORDER.map((langId) => {
-                const lang = LANGUAGES[langId];
-                const isActive = langId === activeLanguage;
-                return (
-                  <button
-                    key={lang.id}
-                    onClick={() => {
-                      setLanguage(langId);
-                      setIsLangOpen(false);
-                    }}
-                    className={cn(
-                      "flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-background text-foreground"
-                        : "text-slate-600 hover:bg-background hover:text-foreground"
-                    )}
-                  >
-                    <Icon name={lang.icon} size={18} className={cn(!isActive && "text-slate-400")} />
-                    {lang.label}
-                    {isActive && <Icon name="Check" size={16} className="ml-auto text-foreground" />}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-border/60 bg-white/95 backdrop-blur-md md:hidden">
+      <div className="mx-auto flex h-14 max-w-2xl items-center justify-between gap-2 px-4">
+        <Link href="/home" className="flex items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-md shadow-black/10">
+            <Icon name="Sparkles" size={17} className="text-foreground" />
+          </span>
+          <span className="text-[17px] font-extrabold tracking-tight text-foreground">
+            Codora
+          </span>
+        </Link>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-amber-50">
-            <Icon name="Flame" size={12} className="text-orange-500" />
-            <span className="text-sm font-bold text-orange-600 tabular-nums">{profile.streak}</span>
+          <div className="flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5">
+            <Icon name="Zap" size={13} className="text-accent" />
+            <span className="text-xs font-extrabold text-foreground tabular-nums">
+              {profile.xp}
+            </span>
           </div>
-          <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-background">
-            <Icon name="Zap" size={12} className="text-accent" />
-            <span className="text-sm font-bold text-foreground tabular-nums">{profile.xp}</span>
+
+          <div className="relative" ref={langRef}>
+            <button
+              onClick={() => setLangOpen(!langOpen)}
+              aria-expanded={langOpen}
+              aria-haspopup="listbox"
+              aria-label="Select language"
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-white px-2.5 text-xs font-bold text-foreground"
+            >
+              <Icon name={LANGUAGES[language].icon} size={14} className="text-foreground/70" />
+              {LANGUAGES[language].label}
+              <Icon
+                name="ChevronDown"
+                size={13}
+                className={cn("text-muted-foreground transition-transform", langOpen && "rotate-180")}
+              />
+            </button>
+            {langOpen && (
+              <div className="absolute right-0 top-full mt-2 w-40 rounded-2xl bg-white py-1.5 shadow-xl ring-1 ring-black/5 animate-fade-in-down">
+                {LANG_ORDER.map((id) => (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      setLanguage(id);
+                      setLangOpen(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 px-4 py-2 text-sm font-bold transition-colors hover:bg-background/60",
+                      language === id ? "text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    <Icon name={LANGUAGES[id].icon} size={15} className="text-foreground/70" />
+                    {LANGUAGES[id].label}
+                    {language === id && (
+                      <Icon name="Check" size={14} className="ml-auto text-accent" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

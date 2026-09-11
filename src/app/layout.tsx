@@ -1,23 +1,35 @@
+import { Montserrat } from "next/font/google";
 import { AppProvider } from "@/hooks/useApp";
 import ClientLayout from "@/components/ClientLayout";
 import { PwaRegister } from "@/components/PwaRegister";
+import OnboardingGate from "@/components/OnboardingGate";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ErrorHandler } from "@/components/ErrorHandler";
 
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "codora - Code, Learn & Practice",
-  description: "A beginner-friendly coding workspace. Write and run C++, Java, and Python, follow structured lessons, solve practice problems, and track your progress.",
-  applicationName: "codora",
+  title: {
+    default: "Codora — Learn C++ Through Practice",
+    template: "%s · Codora",
+  },
+  description:
+    "Codora is a beginner-friendly way to learn C++. Follow structured lessons, solve practice problems with real code execution, earn XP, and watch your skills grow — all in your browser.",
+  applicationName: "Codora",
   manifest: "/manifest.json",
   icons: {
-    icon: "/codoralogo.png",
-    shortcut: "/codoralogo.png",
-    apple: "/codoralogo.png",
+    icon: "/icons/icon-192x192.png",
+    shortcut: "/icons/icon-192x192.png",
+    apple: "/icons/icon-192x192.png",
   },
   appleWebApp: {
     capable: true,
-    title: "codora",
+    title: "Codora",
     statusBarStyle: "default",
   },
   formatDetection: {
@@ -61,19 +73,17 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <script dangerouslySetInnerHTML={{ __html: cancelSuppressionScript }} />
-        <link rel="icon" type="image/png" href="/codoralogo.png" />
-        <link rel="apple-touch-icon" href="/codoralogo.png" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
       </head>
-      <body className="bg-background text-foreground antialiased" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+      <body
+        className="bg-background text-foreground antialiased"
+        style={{ fontFamily: montserrat.style.fontFamily }}
+      >
         <ErrorHandler />
         <PwaRegister />
         <AppProvider>
-          <ClientLayout>
-            {children}
-          </ClientLayout>
+          <OnboardingGate>
+            <ClientLayout>{children}</ClientLayout>
+          </OnboardingGate>
         </AppProvider>
       </body>
     </html>

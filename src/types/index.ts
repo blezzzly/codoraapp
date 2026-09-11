@@ -34,6 +34,7 @@ export interface Problem {
   hints: Hint[];
   concepts: string[];
   starterCode: string;
+  solutionCode: string;
   testCases: TestCase[];
   hiddenTests: TestCase[];
   xpReward: number;
@@ -103,19 +104,19 @@ export interface StudentProgress {
   bestTime?: string;
   completedAt?: number;
   lastAttemptCode?: string;
+  language?: string;
 }
 
 export interface UserProfile {
-  id?: string;
+  username: string;
   xp: number;
   level: number;
   streak: number;
-  lastActive: number;
+  lastActiveDay: string;
   joinedAt: number;
   totalProblemsSolved: number;
   totalSubmissions: number;
   dailyGoal: number;
-  dailyGoalCompleted: boolean;
 }
 
 export interface Achievement {

@@ -5,63 +5,46 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
-import { navItems, isNavActive } from "@/components/nav/navItems";
+import { primaryNavItems, isNavActive } from "@/components/nav/navItems";
 
 export default function MobileNav() {
   const pathname = usePathname();
 
-  const SPRING_TIMING = "cubic-bezier(0.34, 1.56, 0.64, 1)";
-
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-50 md:hidden"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      className="fixed inset-x-0 bottom-0 z-50 md:hidden safe-bottom"
     >
-      <div className="mx-auto w-full max-w-[380px] px-3 pb-3">
-        <div className="flex items-center justify-between rounded-[28px] bg-white/95 px-1.5 py-2 shadow-[0_-2px_4px_rgba(74,59,94,0.04),0_14px_30px_-8px_rgba(74,59,94,0.22)] ring-1 ring-black/[0.04]">
-          <nav className="flex flex-1 justify-center gap-0.5">
-            {navItems.map((item) => {
-              const isActive = isNavActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-label={item.label}
-                  aria-current={isActive ? "page" : undefined}
-                  className="group flex flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-foreground/60"
-                  style={{ transitionTimingFunction: SPRING_TIMING }}
-                >
-                  <span
-                    className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300 motion-reduce:transition-none motion-reduce:transform-none",
-                      isActive
-                        ? "-translate-y-1 scale-110 bg-primary text-foreground shadow-[0_6px_16px_-2px_rgba(240,192,192,0.6)]"
-                        : "bg-transparent text-slate-400 group-hover:bg-background group-hover:text-foreground group-active:scale-95 motion-reduce:group-hover:translate-y-0"
-                    )}
-                  >
-                    <Icon
-                      name={item.icon}
-                      size={isActive ? 20 : 18}
-                      className={cn(
-                        "transition-all duration-300 motion-reduce:transition-none",
-                        isActive && "motion-safe:group-hover:scale-105"
-                      )}
-                    />
-                  </span>
-                  <span
-                    className={cn(
-                      "text-[9px] font-semibold leading-none transition-colors duration-300 motion-reduce:transition-none",
-                      isActive ? "text-foreground" : "text-slate-400"
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+      <div className="mx-auto grid w-full max-w-md grid-cols-5 items-center gap-1 rounded-t-3xl border-t border-border/60 bg-white/95 px-2 pb-1 pt-2 shadow-[0_-6px_24px_-8px_rgba(74,59,94,0.18)] backdrop-blur">
+        {primaryNavItems.map((item) => {
+          const isActive = isNavActive(pathname, item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
+              className="flex flex-col items-center justify-center gap-0.5 rounded-2xl py-1.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-foreground/60"
+            >
+              <span
+                className={cn(
+                  "flex h-8 w-14 items-center justify-center rounded-full transition-colors duration-300",
+                  isActive ? "bg-primary text-foreground" : "text-slate-400"
+                )}
+              >
+                <Icon name={item.icon} size={20} />
+              </span>
+              <span
+                className={cn(
+                  "text-[10px] font-bold transition-colors",
+                  isActive ? "text-foreground" : "text-slate-400"
+                )}
+              >
+                {item.label}
+              </span>
+            </Link>
+          );
+        })}
       </div>
     </nav>
   );

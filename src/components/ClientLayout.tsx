@@ -1,26 +1,41 @@
 "use client";
 
-import React, { ReactNode } from "react";
+import React from "react";
+import { usePathname } from "next/navigation";
 import DesktopNav from "@/components/nav/DesktopNav";
 import MobileNav from "@/components/nav/MobileNav";
 import MobileHeader from "@/components/nav/MobileHeader";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { Toaster } from "@/components/ui/toaster";
 
-interface ClientLayoutProps {
-  children: ReactNode;
-}
+const FULLSCREEN_ROUTES = ["/onboarding"];
 
-export default function ClientLayout({ children }: ClientLayoutProps) {
+export default function ClientLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const fullscreen =
+    FULLSCREEN_ROUTES.includes(pathname) ||
+    pathname === "/" ||
+    pathname === "/onboarding";
+
+  if (fullscreen) {
+    return (
+      <div className="min-h-dvh bg-background">
+        <Toaster />
+        {children}
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background">
       <OfflineBanner />
-      <main className="pb-40 pt-14 md:pb-16 md:pt-16">
+      <main className="pb-36 pt-14 md:pb-20 md:pt-16">
         {children}
       </main>
-
       <DesktopNav />
       <MobileHeader />
       <MobileNav />
+      <Toaster />
     </div>
   );
 }

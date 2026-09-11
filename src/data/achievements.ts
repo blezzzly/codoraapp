@@ -1,165 +1,230 @@
-import type { Achievement } from "@/types";
+import type { Achievement, StudentProgress, UserProfile, World } from "@/types";
 import { problemTopic } from "@/content";
 
-export const achievements: Achievement[] = [
+export interface AchievementDefinition {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  criteria: string;
+}
+
+export const achievementList: AchievementDefinition[] = [
   {
-    id: "first-step",
-    title: "First Step",
+    id: "first-steps",
+    title: "First Steps",
     description: "Complete your first problem",
     icon: "Check",
-    unlocked: false,
-    criteria: "complete-1-problem",
+    criteria: "first-problem",
   },
   {
-    id: "three-in-a-row",
-    title: "On a Roll",
-    description: "Complete 3 problems in a row",
+    id: "getting-started",
+    title: "Getting Started",
+    description: "Complete 3 problems",
     icon: "Flame",
-    unlocked: false,
-    criteria: "complete-3-consecutive",
+    criteria: "solve-3",
   },
   {
-    id: "week-streak",
+    id: "problem-solver",
+    title: "Problem Solver",
+    description: "Complete 10 problems",
+    icon: "Trophy",
+    criteria: "solve-10",
+  },
+  {
+    id: "streak-keeper",
+    title: "Streak Keeper",
+    description: "Keep a 3-day streak",
+    icon: "Clock",
+    criteria: "streak-3",
+  },
+  {
+    id: "week-warrior",
     title: "Week Warrior",
-    description: "Maintain a 7-day streak",
-    icon: "Zap",
-    unlocked: false,
-    criteria: "streak-7-days",
+    description: "Keep a 7-day streak",
+    icon: "CalendarDays",
+    criteria: "streak-7",
   },
   {
-    id: "world-1-master",
-    title: "C++ Basics Master",
-    description: "Complete all problems in C++ Basics world",
-    icon: "GraduationCap",
-    unlocked: false,
-    criteria: "complete-world-1",
+    id: "cpp-master",
+    title: "C++ Master",
+    description: "Complete the C++ Basics world",
+    icon: "Code",
+    criteria: "world-1",
+  },
+  {
+    id: "decision-maker",
+    title: "Decision Maker",
+    description: "Complete the Decisions world",
+    icon: "GitBranch",
+    criteria: "world-2",
+  },
+  {
+    id: "loop-master",
+    title: "Loop Master",
+    description: "Complete the Loops world",
+    icon: "RotateCw",
+    criteria: "world-3",
+  },
+  {
+    id: "polyglot",
+    title: "Polyglot",
+    description: "Solve problems in 2 or more languages",
+    icon: "Languages",
+    criteria: "polyglot",
+  },
+  {
+    id: "challenge-champion",
+    title: "Challenge Champion",
+    description: "Complete your first weekly challenge",
+    icon: "Award",
+    criteria: "first-challenge",
   },
   {
     id: "loop-logic",
     title: "Loop Logic",
     description: "Complete your first loop problem",
     icon: "RotateCw",
-    unlocked: false,
-    criteria: "complete-loop-problem",
-  },
-  {
-    id: "loop-master",
-    title: "Loop Master",
-    description: "Complete all beginner loop exercises",
-    icon: "RotateCw",
-    unlocked: false,
-    criteria: "complete-all-beginner-loops",
-  },
-  {
-    id: "ten-solved",
-    title: "Decade of C++",
-    description: "Solve 10 problems",
-    icon: "Trophy",
-    unlocked: false,
-    criteria: "solve-10-problems",
+    criteria: "first-loop-problem",
   },
   {
     id: "hundred-xp",
     title: "XP Hunter",
     description: "Earn 100 XP",
+    icon: "Zap",
+    criteria: "xp-100",
+  },
+  {
+    id: "three-hundred-xp",
+    title: "XP Collector",
+    description: "Earn 300 XP",
     icon: "Sparkles",
-    unlocked: false,
-    criteria: "earn-100-xp",
+    criteria: "xp-300",
   },
   {
-    id: "hint-free",
-    title: "Self-Learner",
-    description: "Solve a problem without using any hints",
-    icon: "Brain",
-    unlocked: false,
-    criteria: "no-hints-solve",
-  },
-  {
-    id: "debugger",
-    title: "Bug Hunter",
-    description: "Successfully debug a failing test",
-    icon: "Target",
-    unlocked: false,
-    criteria: "debug-test",
-  },
-  {
-    id: "c-seed",
-    title: "C++ Seed",
-    description: "Begin your C++ journey",
-    icon: "Leaf",
-    unlocked: true,
-    unlockedAt: Date.now(),
-    criteria: "start-app",
-  },
-  {
-    id: "world-explorer",
-    title: "World Explorer",
-    description: "Unlock your first new world",
-    icon: "Map",
-    unlocked: false,
-    criteria: "unlock-world",
-  },
-  {
-    id: "c-master",
-    title: "C++ Master",
-    description: "Solve problems from every world",
-    icon: "Award",
-    unlocked: false,
-    criteria: "solve-every-world",
+    id: "thousand-xp",
+    title: "XP Legend",
+    description: "Earn 1,000 XP",
+    icon: "Trophy",
+    criteria: "xp-1000",
   },
 ];
 
-export function checkAchievements(
-  achievementList: Achievement[],
-  profile: {
-    xp: number;
-    streak: number;
-    totalProblemsSolved: number;
-    totalSubmissions: number;
-  },
-  progress: Record<string, { status: string }>
-): Achievement[] {
-  return achievementList.map((achievement) => {
-    if (achievement.unlocked) return achievement;
+interface AchievementContext {
+  profile: UserProfile;
+  progress: Record<string, StudentProgress>;
+  worlds: World[];
+  solvedChallenges: string[];
+}
 
-    let shouldUnlock = false;
+function criteriaSolved(
+  ctx: AchievementContext,
+  predicate: (problemId: string) => boolean
+): boolean {
+  return Object.values(ctx.progress).some(
+    (p) => p.status === "solved" && predicate(p.problemId)
+  );
+}
 
-    const loopProblems = Object.keys(problemTopic).filter((id) => {
-      const t = problemTopic[id];
-      return t === "for-loops" || t === "while-loops" || t === "do-while-loops";
-    });
-    const loopSolvedCount = loopProblems.filter((id) => progress[id]?.status === "solved").length;
+function criteriaSolvedCount(
+  ctx: AchievementContext,
+  predicate: (problemId: string) => boolean
+): number {
+  return Object.values(ctx.progress).filter(
+    (p) => p.status === "solved" && predicate(p.problemId)
+  ).length;
+}
 
-    switch (achievement.criteria) {
-      case "complete-1-problem":
-        shouldUnlock = profile.totalProblemsSolved >= 1;
-        break;
-      case "solve-10-problems":
-        shouldUnlock = profile.totalProblemsSolved >= 10;
-        break;
-      case "streak-7-days":
-        shouldUnlock = profile.streak >= 7;
-        break;
-      case "earn-100-xp":
-        shouldUnlock = profile.xp >= 100;
-        break;
-      case "unlock-world":
-        shouldUnlock = profile.totalProblemsSolved >= 5;
-        break;
-      case "complete-loop-problem":
-        shouldUnlock = loopSolvedCount >= 1;
-        break;
-      case "complete-all-beginner-loops":
-        shouldUnlock = loopProblems.length > 0 && loopSolvedCount === loopProblems.length;
-        break;
-      case "debug-test":
-        shouldUnlock = profile.totalSubmissions >= 3;
-        break;
-    }
-
-    if (shouldUnlock) {
-      return { ...achievement, unlocked: true, unlockedAt: Date.now() };
-    }
-    return achievement;
+function isWorldComplete(ctx: AchievementContext, worldId: string): boolean {
+  const world = ctx.worlds.find((w) => w.id === worldId);
+  if (!world) return false;
+  return world.lessons.every((lessonId) => {
+    const problem = Object.values(ctx.progress).find(
+      (p) => p.problemId === lessonId && p.status === "solved"
+    );
+    return !!problem;
   });
+}
+
+const LOOP_TOPICS = new Set(["for-loops", "while-loops", "do-while-loops"]);
+
+function isLoopProblem(problemId: string): boolean {
+  const topic = problemTopic[problemId];
+  return topic ? LOOP_TOPICS.has(topic) : false;
+}
+
+function isCriteriaMet(criteria: string, ctx: AchievementContext): boolean {
+  const solved = criteriaSolvedCount(ctx, () => true);
+  const distinctLanguages = new Set<string>();
+  Object.values(ctx.progress).forEach((p) => {
+    if (p.status === "solved" && p.language) {
+      distinctLanguages.add(p.language);
+    }
+  });
+
+  switch (criteria) {
+    case "first-problem":
+      return solved >= 1;
+    case "solve-3":
+      return solved >= 3;
+    case "solve-10":
+      return solved >= 10;
+    case "streak-3":
+      return ctx.profile.streak >= 3;
+    case "streak-7":
+      return ctx.profile.streak >= 7;
+    case "world-1":
+      return isWorldComplete(ctx, "world-1");
+    case "world-2":
+      return isWorldComplete(ctx, "world-2");
+    case "world-3":
+      return isWorldComplete(ctx, "world-3");
+    case "polyglot":
+      return distinctLanguages.size >= 2;
+    case "first-challenge":
+      return ctx.solvedChallenges.length >= 1;
+    case "first-loop-problem":
+      return criteriaSolved(ctx, isLoopProblem);
+    case "xp-100":
+      return ctx.profile.xp >= 100;
+    case "xp-300":
+      return ctx.profile.xp >= 300;
+    case "xp-1000":
+      return ctx.profile.xp >= 1000;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Returns the achievements list with icon lookup resolved and updated unlock
+ * states. Already-unlocked achievements keep their unlock date.
+ */
+export function checkAchievements(
+  existing: Achievement[],
+  profile: UserProfile,
+  progress: Record<string, StudentProgress>,
+  worlds: World[],
+  solvedChallenges: string[]
+): Achievement[] {
+  const existingMap = new Map(existing.map((a) => [a.id, a]));
+  const ctx: AchievementContext = { profile, progress, worlds, solvedChallenges };
+  return achievementList.map((def) => {
+    const prev = existingMap.get(def.id);
+    if (prev?.unlocked) {
+      return prev;
+    }
+    const unlocked = isCriteriaMet(def.criteria, ctx);
+    return {
+      ...def,
+      unlocked,
+      unlockedAt: unlocked ? Date.now() : undefined,
+    };
+  });
+}
+
+export function withAchievementIcons(
+  achievements: Achievement[]
+): { id: string; title: string; description: string; icon: string; unlocked: boolean; unlockedAt?: number; criteria: string }[] {
+  return achievements;
 }

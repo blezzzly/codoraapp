@@ -24,9 +24,7 @@ using namespace std;
 
 int main() {
 
-//start your program here
-
-}`,
+} // end of main`,
     readsInput:
       /\bcin\b|\bcin\s*>>|\bstd::cin\b|\bscanf\b|\bgetline\b|\bstd::getline\b|\bgets\b|\bgetchar\b/,
   },
@@ -36,12 +34,13 @@ int main() {
     icon: "Coffee",
     compilerId: "java2102",
     userArguments: "",
-    template: `class Main {
-  public static void main(String[] args) {
+    template: `import java.util.Scanner;
 
-    //start your program here
+class Main {
+    public static void main(String[] args) {
+        Scanner input = new Scanner(System.in);
 
-  }
+    }
 }`,
     readsInput: /\bScanner\b|System\.in|nextInt\s*\(|nextLine\s*\(|nextDouble\s*\(|next\s*\(/,
   },
@@ -66,4 +65,8 @@ export function getLanguageConfig(id: string | undefined | null): LanguageConfig
 
 export function isSupportedLanguage(id: string | undefined | null): boolean {
   return !!id && id in LANGUAGES;
+}
+
+export function getLanguageLabel(id: string | undefined | null): string {
+  return getLanguageConfig(id).label;
 }

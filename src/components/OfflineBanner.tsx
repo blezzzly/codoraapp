@@ -1,6 +1,8 @@
 "use client";
 
+import React from "react";
 import { useOnline } from "@/hooks/useOnline";
+import { Icon } from "@/components/ui/icon";
 
 export function OfflineBanner() {
   const online = useOnline();
@@ -8,8 +10,15 @@ export function OfflineBanner() {
   if (online) return null;
 
   return (
-    <div className="fixed top-14 inset-x-0 z-50 bg-amber-500 text-white text-center text-xs font-bold px-4 py-2 shadow-lg">
-      Offline mode — pages you've visited still open. Running code needs the internet.
+    <div
+      role="status"
+      className="flex items-center justify-center gap-2 bg-[#4A3B5E] px-4 py-2.5 text-center text-xs font-semibold text-white shadow-md animate-fade-in-down"
+    >
+      <Icon name="WifiOff" size={15} className="shrink-0 text-primary" />
+      <span>
+        You&apos;re offline. Lessons and progress still work. Running code needs
+        the internet.
+      </span>
     </div>
   );
 }

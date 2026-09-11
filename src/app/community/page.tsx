@@ -1,137 +1,146 @@
-import { Icon } from "@/components/ui/icon";
+"use client";
 
-const communityCards = [
+import React, { useState } from "react";
+import { Icon } from "@/components/ui/icon";
+import { PageHeader } from "@/components/ui/page-header";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+const PLANNED = [
   {
-    icon: "Lightbulb",
-    title: "Code Tips",
-    description: "Share the small tricks that make your code cleaner and faster — like using std::lower_bound or one-liner comprehensions.",
+    icon: "MessageSquare",
+    title: "Discussions",
+    description:
+      "Ask questions about lessons, get help with problems, and share solutions.",
+    color: "bg-blue-100 text-blue-600",
+  },
+  {
+    icon: "Users",
+    title: "Study groups",
+    description:
+      "Form groups around a topic, compare notes, and debug together.",
+    color: "bg-secondary text-accent",
+  },
+  {
+    icon: "Trophy",
+    title: "Leaderboards",
+    description:
+      "See how you rank among other learners and stay motivated.",
     color: "bg-amber-100 text-amber-600",
   },
   {
-    icon: "Users",
-    title: "Study Groups",
-    description: "Find classmates and form groups for a subject or a topic. Compare notes and debug together.",
-    color: "bg-secondary text-foreground",
-  },
-  {
-    icon: "Award",
-    title: "Weekly Challenges",
-    description: "Mini-contests built around your current lessons. Compete for XP and bragging rights.",
-    color: "bg-rose-100 text-rose-600",
-  },
-];
-
-const discussionPreview = [
-  {
-    icon: "MessagesSquare",
-    title: "Hot topics this week",
-    items: [
-      "Why is my for-loop skipping the last number?",
-      "Best way to read unknown amounts of input",
-      "Debugging with print / cout — still valid?",
-    ],
-  },
-  {
-    icon: "Users",
-    title: "Active study groups",
-    items: [
-      "C++ Basics · 12 members",
-      "Java Beginners · 8 members",
-      "Python Loops · 15 members",
-    ],
+    icon: "Lightbulb",
+    title: "Code tips",
+    description:
+      "Share the small tricks that make your code cleaner and faster.",
+    color: "bg-emerald-100 text-emerald-600",
   },
 ];
 
 export default function CommunityPage() {
+  const { show } = useToast();
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const onJoinWaitlist = () => {
+    setSent(true);
+    setEmail("");
+    show({
+      title: "You're on the list",
+      description: "We'll let you know when the community opens.",
+      variant: "success",
+    });
+  };
+
   return (
-    <div className="min-h-screen">
-      <div className="max-w-2xl mx-auto px-4 pt-6">
-        <div className="relative bg-white rounded-3xl p-6 shadow-lg shadow-black/15 overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-background rounded-full blur-3xl -z-0" />
-          <div className="relative flex items-center gap-4">
-            <div className="w-14 h-14 shrink-0 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-black/20">
-              <Icon name="MessagesSquare" size={26} className="text-foreground" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-700 flex items-center gap-2">
-                Community
-                <span className="rounded-full bg-background px-2.5 py-0.5 text-[10px] font-bold text-foreground">
-                  SOON
-                </span>
-              </h1>
-              <p className="text-sm text-slate-400">Learn together. Grow together.</p>
-            </div>
+    <div className="mx-auto max-w-2xl px-4 py-6 space-y-6">
+      <PageHeader
+        icon="Users"
+        title="Community"
+        subtitle="Connect with other learners — coming soon"
+      />
+
+      {/* Coming soon banner */}
+      <div className="rounded-3xl bg-white p-6 shadow-lg shadow-black/10 animate-fade-in-up">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-3xl bg-primary text-foreground shadow-lg shadow-black/10">
+            <Icon name="Users" size={30} />
+          </span>
+          <div>
+            <h2 className="text-xl font-extrabold text-foreground">
+              The community is on its way
+            </h2>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+              Right now Codora focuses on your solo practice. We want to add a
+              friendly place to share and discuss — here&apos;s what&apos;s in store.
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        <div
-          className="animate-fade-in-up opacity-0 rounded-3xl bg-background p-6"
-          style={{ animationFillMode: "forwards" }}
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-foreground">
-              <Icon name="MessagesSquare" size={22} />
+      {/* Planned features */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {PLANNED.map((f, i) => (
+          <div
+            key={f.title}
+            className={cn(
+              "rounded-2xl bg-white p-4 shadow-md shadow-black/5 animate-fade-in-up",
+              `stagger-${i + 1}`
+            )}
+          >
+            <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl", f.color)}>
+              <Icon name={f.icon} size={20} />
             </span>
-            <div>
-              <h2 className="font-bold text-foreground">Community is on the way</h2>
-              <p className="text-sm text-foreground/70">
-                The place where students talk code.
-              </p>
-            </div>
+            <h3 className="mt-3 text-sm font-bold text-foreground">{f.title}</h3>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+              {f.description}
+            </p>
           </div>
-          <p className="mt-4 text-sm leading-relaxed text-foreground/80">
-            Soon you&apos;ll be able to discuss problems, share solutions, form study groups,
-            and join weekly challenges with your classmates in whatever language you&apos;re
-            learning. While we build it, keep grinding on your lessons and practice sets.
-          </p>
-        </div>
+        ))}
+      </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          {communityCards.map((card) => (
-            <div
-              key={card.title}
-              className="animate-fade-in-up opacity-0 rounded-3xl bg-white p-5 shadow-lg shadow-black/15"
-              style={{ animationFillMode: "forwards", animationDelay: "100ms" }}
-            >
-              <span
-                className={`flex h-11 w-11 items-center justify-center rounded-xl ${card.color}`}
-              >
-                <Icon name={card.icon} size={20} />
-              </span>
-              <h3 className="mt-3 font-bold text-slate-700">{card.title}</h3>
-              <p className="mt-1 text-sm leading-relaxed text-slate-400">
-                {card.description}
-              </p>
-            </div>
-          ))}
+      {/* Waitlist */}
+      <div className="rounded-3xl border border-primary/40 bg-white p-5 shadow-md shadow-black/5">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/40 text-foreground">
+            <Icon name="Mail" size={20} />
+          </span>
+          <div>
+            <p className="text-sm font-bold text-foreground">Get notified</p>
+            <p className="text-xs text-muted-foreground">
+              Leave your email and we&apos;ll ping you when community features open.
+            </p>
+          </div>
         </div>
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {discussionPreview.map((section) => (
-            <div
-              key={section.title}
-              className="animate-fade-in-up opacity-0 rounded-3xl bg-white p-5 shadow-lg shadow-black/15"
-              style={{ animationFillMode: "forwards", animationDelay: "200ms" }}
+        {sent ? (
+          <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
+            <Icon name="CheckCircle" size={18} /> You&apos;re on the waitlist!
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (email.trim()) onJoinWaitlist();
+            }}
+            className="mt-4 flex flex-col gap-2 sm:flex-row"
+          >
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              aria-label="Email for the community waitlist"
+              className="h-11 flex-1 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+            />
+            <button
+              type="submit"
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-foreground shadow-md"
             >
-              <div className="flex items-center gap-2 mb-4">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-background text-accent">
-                  <Icon name={section.icon} size={18} />
-                </span>
-                <h3 className="font-bold text-slate-700">{section.title}</h3>
-              </div>
-              <ul className="space-y-2.5">
-                {section.items.map((item) => (
-                  <li key={item} className="flex items-start gap-2 text-sm text-slate-500">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+              <Icon name="Rocket" size={16} /> Join waitlist
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

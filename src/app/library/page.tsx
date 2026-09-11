@@ -1,186 +1,214 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
+import { useApp } from "@/hooks/useApp";
 import { Icon } from "@/components/ui/icon";
-import { codeExamplesByCategory } from "@/content";
+import { PageHeader } from "@/components/ui/page-header";
+import { Badge } from "@/components/ui/badge";
+import { CodeBlock } from "@/components/ui/code-block";
+import { codeExamples } from "@/content";
 import { setDraft } from "@/lib/ideDraft";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
-function CodeDisplay({ code, language = "cpp" }: { code: string; language?: string }) {
-  const [copied, setCopied] = useState(false);
-  const lines = code.split("\n");
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="code-block mt-3">
-      <div className="code-header">
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-accent" />
-            <div className="w-3 h-3 rounded-full bg-amber-400" />
-            <div className="w-3 h-3 rounded-full bg-accent" />
-          </div>
-          <span className="text-xs text-gray-400 ml-2">{language.toUpperCase()}</span>
-        </div>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
-        >
-          <Icon name={copied ? "CheckCheck" : "Copy"} size={14} />
-          {copied ? "Copied!" : "Copy"}
-        </button>
-      </div>
-      <div className="code-content">
-        {lines.map((line, i) => (
-          <div key={i} className="code-line">
-            <span className="code-line-number">{i + 1}</span>
-            <span className="text-gray-200 whitespace-pre">{line}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+const CAT_SEPARATOR: Record<string, string> = {
+  "input-output": "Input & Output",
+  variables: "Variables",
+  "data-types": "Data types",
+  operators: "Operators",
+  conditions: "Conditions",
+  switch: "Switch",
+  "for-loops": "For loops",
+  "while-loops": "While loops",
+  functions: "Functions",
+  arrays: "Arrays",
+  strings: "Strings",
+  pointers: "Pointers",
+  oop: "Classes & objects",
+};
 
 export default function LibraryPage() {
+  const { language } = useApp();
   const router = useRouter();
-  const groups = codeExamplesByCategory();
+  const { show } = useToast();
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<string>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [running, setRunning] = useState<string | null>(null);
-  const [output, setOutput] = useState<Record<string, string>>({});
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    const firstGroup = Object.keys(groups)[0];
-    if (firstGroup && groups[firstGroup][0]) {
-      setExpanded(groups[firstGroup][0].id);
+  const groups = useMemo(() => {
+    const map: Record<string, typeof codeExamples> = {};
+    for (const ex of codeExamples) {
+      if (category !== "all" && ex.category !== category) continue;
+      const q = query.trim().toLowerCase();
+      if (q && !ex.title.toLowerCase().includes(q) && !ex.description.toLowerCase().includes(q)) continue;
+      (map[ex.category] ??= []).push(ex);
     }
-  }, [groups]);
+    return map;
+  }, [query, category]);
 
-  const runExample = async (id: string, code: string, lang: string) => {
-    setRunning(id);
-    setOutput((prev) => ({ ...prev, [id]: "Running..." }));
-    try {
-      const res = await fetch("/api/run-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language: lang }),
-      });
-      const result = await res.json();
-      setOutput((prev) => ({ ...prev, [id]: result.output || "(no output)" }));
-    } catch {
-      setOutput((prev) => ({ ...prev, [id]: "Error running example" }));
-    } finally {
-      setRunning(null);
-    }
-  };
+  const categories = useMemo(
+    () => [...new Set(codeExamples.map((e) => e.category))],
+    []
+  );
 
-  const openInIde = (code: string, lang: string) => {
-    setDraft(code, lang);
+  const openInIde = (ex: (typeof codeExamples)[number]) => {
+    setDraft(ex.code, language);
+    show({
+      title: `Draft loaded: "${ex.title}"`,
+      description: "It's ready in the IDE — just press Run.",
+      variant: "success",
+    });
     router.push("/ide");
   };
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="relative w-16 h-16">
-          <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-50" />
-          <div className="relative w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-xl">
-            <Icon name="Layers" size={28} className="text-foreground" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen pb-24">
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        <div className="animate-fade-in-up">
-          <h1 className="text-2xl font-bold text-slate-700 flex items-center gap-2 mb-1">
-            <Icon name="Layers" size={24} className="text-accent" />
-            Code Library
-          </h1>
-          <p className="text-sm text-slate-400">Study examples in any topic — run them or open them in the IDE.</p>
+    <div className="mx-auto max-w-2xl px-4 py-6">
+      <PageHeader
+        icon="Library"
+        title="Code Library"
+        subtitle="Copy-paste runnable C++ examples"
+        action={
+          <Link
+            href="/ide"
+            className="hidden items-center gap-2 sm:inline-flex sm:h-10 sm:rounded-xl sm:bg-primary sm:px-4 sm:text-xs sm:font-bold sm:text-foreground sm:shadow-md"
+          >
+            <Icon name="Terminal" size={15} /> Open IDE
+          </Link>
+        }
+      />
+
+      <div className="mt-5 space-y-3">
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+            <Icon name="Search" size={16} />
+          </span>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search examples..."
+            aria-label="Search examples"
+            className="h-12 w-full rounded-2xl border border-border bg-white pl-10 pr-4 text-sm text-foreground shadow-sm outline-none placeholder:text-muted-foreground focus:border-primary"
+          />
         </div>
 
-        {Object.entries(groups).map(([category, examples], groupIdx) => (
-          <section key={category} className="animate-fade-in-up stagger-1" style={{ animationDelay: `${groupIdx * 0.05}s` }}>
-            <h2 className="text-base font-bold text-slate-700 mb-3 flex items-center gap-2">
-              <Icon name="Hash" size={16} className="text-accent" />
-              {category}
-            </h2>
-            <div className="space-y-3">
-              {examples.map((example) => {
-                const isOpen = expanded === example.id;
-                return (
-                  <div key={example.id} className="bg-white rounded-2xl shadow-lg shadow-black/15 overflow-hidden">
-                    <button
-                      onClick={() => setExpanded(isOpen ? null : example.id)}
-                      className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-slate-700 text-sm">{example.title}</h3>
-                        <p className="text-xs text-slate-400 truncate">{example.description}</p>
-                      </div>
-                      <Icon name={isOpen ? "ChevronUp" : "ChevronDown"} size={18} className="text-slate-300 transition-transform" />
-                    </button>
-
-                    {isOpen && (
-                      <div className="px-4 pb-4">
-                        <p className="text-sm text-slate-500">{example.explanation}</p>
-                        <CodeDisplay code={example.code} language={example.language || "cpp"} />
-
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <button
-                            onClick={() => runExample(example.id, example.code, example.language || "cpp")}
-                            disabled={running === example.id}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-colors disabled:opacity-60 shadow-lg"
-                          >
-                            <Icon name="Play" size={14} />
-                            {running === example.id ? "Running..." : "Run Code"}
-                          </button>
-                          <button
-                            onClick={() => openInIde(example.code, example.language || "cpp")}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-secondary text-foreground text-xs font-bold hover:bg-primary transition-colors shadow-lg"
-                          >
-                            <Icon name="Terminal" size={14} />
-                            Open in IDE
-                          </button>
-                          <span className="text-xs text-slate-400 font-mono ml-auto">
-                            Output: {example.output}
-                          </span>
-                        </div>
-
-                        {output[example.id] && (
-                          <div className="mt-3 bg-[#181825] text-gray-300 rounded-xl p-3 font-mono text-xs overflow-x-auto whitespace-pre-wrap">
-                            {output[example.id]}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-
-        <div className="text-center pt-2">
-          <Link href="/practice" className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground hover:text-foreground">
-            <Icon name="Code" size={16} />
-            Ready to practice?
-            <Icon name="ChevronRight" size={14} />
-          </Link>
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <button
+            onClick={() => setCategory("all")}
+            className={cn(
+              "shrink-0 rounded-full px-4 py-2 text-xs font-bold transition-colors",
+              category === "all"
+                ? "bg-primary text-foreground shadow-md shadow-black/10"
+                : "bg-white text-muted-foreground hover:text-foreground"
+            )}
+          >
+            All
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCategory(c)}
+              className={cn(
+                "shrink-0 rounded-full px-4 py-2 text-xs font-bold transition-colors",
+                category === c
+                  ? "bg-primary text-foreground shadow-md shadow-black/10"
+                  : "bg-white text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {CAT_SEPARATOR[c] ?? c.replace(/-/g, " ")}
+            </button>
+          ))}
         </div>
       </div>
+
+      {Object.keys(groups).length === 0 ? (
+        <div className="mt-8 rounded-3xl border border-dashed border-border bg-white/60 p-10 text-center">
+          <p className="text-sm font-bold text-foreground">No examples found</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Try a different search or category.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-5 space-y-6">
+          {Object.entries(groups).map(([cat, examples]) => (
+            <section key={cat}>
+              <h2 className="mb-2 text-sm font-extrabold uppercase tracking-wide text-muted-foreground">
+                {CAT_SEPARATOR[cat] ?? cat.replace(/-/g, " ")}
+              </h2>
+              <div className="space-y-3">
+                {examples.map((ex) => {
+                  const isOpen = expanded === ex.id;
+                  return (
+                    <div
+                      key={ex.id}
+                      className="overflow-hidden rounded-2xl bg-white shadow-md shadow-black/5"
+                    >
+                      <button
+                        onClick={() => setExpanded(isOpen ? null : ex.id)}
+                        className="flex w-full items-start gap-3 p-4 text-left"
+                        aria-expanded={isOpen}
+                      >
+                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-accent">
+                          <Icon name="FileCode" size={18} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="truncate text-sm font-bold text-foreground">
+                              {ex.title}
+                            </h3>
+                            {ex.language && (
+                              <Badge variant="outline">{ex.language}</Badge>
+                            )}
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {ex.description}
+                          </p>
+                        </div>
+                        <Icon
+                          name="ChevronDown"
+                          size={17}
+                          className={cn(
+                            "mt-1 shrink-0 text-muted-foreground transition-transform",
+                            isOpen && "rotate-180"
+                          )}
+                        />
+                      </button>
+
+                      {isOpen && (
+                        <div className="px-4 pb-4 animate-fade-in-up">
+                          <p className="mb-2 rounded-xl bg-background p-3 text-sm text-muted-foreground">
+                            <span className="font-bold text-foreground">Why:</span>{" "}
+                            {ex.explanation}
+                          </p>
+                          <CodeBlock
+                            code={ex.code}
+                            language="cpp"
+                            title={`Copy this · output: ${ex.output}`}
+                            onCopy={() =>
+                              show({ title: "Code copied to clipboard", variant: "success" })
+                            }
+                          />
+                          <button
+                            onClick={() => openInIde(ex)}
+                            className="mt-2 inline-flex h-10 items-center gap-2 rounded-xl bg-secondary px-4 text-xs font-bold text-foreground"
+                          >
+                            <Icon name="Terminal" size={15} /> Open in IDE
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+
+      <p className="mt-8 text-center text-xs text-muted-foreground">
+        All snippets are C++ and work in the Codora editor.
+      </p>
     </div>
   );
 }
