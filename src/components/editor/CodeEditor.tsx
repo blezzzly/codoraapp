@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -54,8 +54,15 @@ export default function CodeEditor({
   const [runResult, setRunResult] = useState<RunResult | null>(null);
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [autoFocusInput, setAutoFocusInput] = useState(false);
+  const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const config = getLanguageConfig(language);
+
+  useEffect(() => {
+    if (autoFocusInput) inputRef.current?.focus();
+  }, [autoFocusInput]);
 
   const [prevLanguage, setPrevLanguage] = useState(language);
   if (prevLanguage !== language) {
@@ -85,11 +92,14 @@ export default function CodeEditor({
     }
     setRunning(true);
     setRunResult(null);
+    setAutoFocusInput(false);
     try {
       const res = await fetch("/api/run-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, input }),
+        body: JSON.stringify(
+          input.trim() ? { code, language, input } : { code, language }
+        ),
       });
       const data = await res.json().catch(() => null);
       if (res.status === 429) {
@@ -112,20 +122,25 @@ export default function CodeEditor({
         });
         return;
       }
-      if (data.success) {
+      if (data.waitingForInput) {
+        setRunResult({
+          output: data.output ?? "",
+          success: false,
+          waitingForInput: true,
+          isError: false,
+        });
+        setAutoFocusInput(true);
+        show({
+          title: "Program is waiting for input",
+          description: "Type your input at the $ prompt below, then press Run.",
+        });
+      } else if (data.success) {
         setRunResult({
           output: data.output ?? "",
           success: true,
-          waitingForInput: !!data.waitingForInput,
+          waitingForInput: false,
           isError: false,
         });
-        if (data.waitingForInput) {
-          show({
-            title: "Your program is waiting for input",
-            description:
-              "Type something in the Input box, then press Run again.",
-          });
-        }
       } else {
         const explanation = data.explanation
           ? {
@@ -248,10 +263,13 @@ export default function CodeEditor({
     }
   }, [code, show]);
 
-  const readsInput = config.readsInput.test(code);
-
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-[#2d2438] shadow-lg shadow-black/10">
+    <div
+      className={cn(
+        "overflow-hidden rounded-2xl border border-border bg-[#2d2438] shadow-lg shadow-black/10 transition-colors duration-300",
+        focused && "editor-typing-glow"
+      )}
+    >
       {/* Editor header */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#35294a] px-4 py-2.5">
         <div className="flex items-center gap-2">
@@ -288,8 +306,10 @@ export default function CodeEditor({
         autoComplete="off"
         autoCorrect="off"
         aria-label="Code editor"
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         className={cn(
-          "w-full resize-y bg-transparent p-4 font-mono text-[13.5px] leading-relaxed text-[#fce4ec] outline-none placeholder:text-white/30 selection:bg-primary/30",
+          "w-full resize-y bg-transparent p-4 font-mono text-[13.5px] leading-relaxed text-[#fce4ec] outline-none caret-primary placeholder:text-white/30 selection:bg-primary/30",
           minHeightClass
         )}
         placeholder={`// ${LANGUAGES[language].label} code goes here`}
@@ -312,72 +332,67 @@ export default function CodeEditor({
         }}
       />
 
-      {/* Input + actions */}
-      <div className="border-t border-white/10 bg-[#261e33] p-3">
-        <label className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-primary/70">
-          <span className="flex items-center gap-1.5">
-            <Icon name="ArrowDown" size={12} /> Input
+      {/* Console */}
+      <div className="border-t border-white/10 bg-[#261e33]">
+        <div className="flex items-center justify-between gap-3 px-3 pt-2.5">
+          <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary/70">
+            <Icon name="Terminal" size={12} /> Console
+            {running && (
+              <span className="animate-pulse normal-case tracking-normal text-amber-300/90">
+                running…
+              </span>
+            )}
           </span>
-          {readsInput && (
-            <span className="normal-case tracking-normal text-amber-300/90">
-              Your code expects input
-            </span>
-          )}
-        </label>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            aria-label="Program input (stdin)"
-            placeholder="Type program input here, e.g. 5 3"
-            className="h-10 flex-1 rounded-xl border border-white/10 bg-[#1d1628] px-3 text-[13px] text-[#fce4ec] outline-none placeholder:text-white/30 focus:border-primary/50"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleRun();
-            }}
-          />
-          <Button onClick={handleRun} disabled={running} className="h-10 sm:w-auto">
-            <Icon
-              name={running ? "RotateCw" : "Play"}
-              size={16}
-              className={running ? "animate-spin" : ""}
-            />
-            {running ? "Running..." : "Run"}
-          </Button>
-          {testCases && testCases.length > 0 && (
-            <Button
-              onClick={handleCheck}
-              disabled={checking || running}
-              variant={testCases.length > 0 ? "outline" : "ghost"}
-              className="h-10 sm:w-auto"
-            >
+          <div className="flex items-center gap-2">
+            {testCases && testCases.length > 0 && (
+              <Button
+                onClick={handleCheck}
+                disabled={checking || running}
+                variant="outline"
+                className="h-8 px-3 text-xs"
+              >
+                <Icon
+                  name={checking ? "RotateCw" : "CheckCircle"}
+                  size={14}
+                  className={checking ? "animate-spin" : ""}
+                />
+                {checking ? "Checking..." : "Check"}
+              </Button>
+            )}
+            <Button onClick={handleRun} disabled={running} className="h-8 px-3 text-xs">
               <Icon
-                name={checking ? "RotateCw" : "CheckCircle"}
-                size={16}
-                className={checking ? "animate-spin" : ""}
+                name={running ? "RotateCw" : "Play"}
+                size={14}
+                className={running ? "animate-spin" : ""}
               />
-              {checking ? "Checking..." : "Check"}
+              {running ? "Running..." : "Run"}
             </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Output section */}
-      {(runResult || checkResult) && (
-        <div className="border-t border-white/10 bg-[#1d1628] p-4 animate-fade-in-up">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary/70">
-              <Icon name="Terminal" size={13} /> Output
-            </span>
-            <button
-              onClick={() => {
-                setRunResult(null);
-                setCheckResult(null);
-              }}
-              className="text-[11px] font-bold text-primary/70 hover:text-primary"
-            >
-              Clear
-            </button>
           </div>
+        </div>
+        <div className="p-3">
+          <div className="rounded-xl border border-white/10 bg-[#1d1628] p-3">
+          {runResult?.waitingForInput && (
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-amber-300">
+              <Icon name="Keyboard" size={13} />
+              Your program is waiting for input — type it at the $ prompt, then press Enter.
+            </p>
+          )}
+          {(runResult || checkResult) && (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary/70">
+                  <Icon name="Terminal" size={13} /> Output
+                </span>
+                <button
+                  onClick={() => {
+                    setRunResult(null);
+                    setCheckResult(null);
+                  }}
+                  className="text-[11px] font-bold text-primary/70 hover:text-primary"
+                >
+                  Clear
+                </button>
+              </div>
 
           {checkResult && !checkResult.compileError && (
             <div className="mb-3 space-y-2">
@@ -462,15 +477,44 @@ export default function CodeEditor({
               )}
             </div>
           )}
+          </div>
+          )}
 
-          {runResult?.waitingForInput && (
-            <p className="mt-2 text-xs font-semibold text-amber-300">
-              Your program may be waiting for input. Enter something in the Input
-              box and run it again.
+          {(runResult || checkResult) && <div className="mt-3 border-t border-white/10" />}
+          <div className={cn("flex items-center gap-2 font-mono text-[13px]", (runResult || checkResult) && "mt-2")}>
+            <span
+              className={cn(
+                "shrink-0 font-bold text-emerald-300",
+                runResult?.waitingForInput && "console-caret"
+              )}
+            >
+              $
+            </span>
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              aria-label="Program input (stdin)"
+              placeholder={
+                runResult?.waitingForInput
+                  ? "Type your program's input here, then press Enter"
+                  : "Type program input here, e.g. 5 3"
+              }
+              className="w-full bg-transparent text-[13px] text-[#fce4ec] outline-none placeholder:text-white/30 caret-primary"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRun();
+              }}
+            />
+          </div>
+          {!(runResult || checkResult) && (
+            <p className="mt-2 text-[11px] leading-relaxed text-primary/50">
+              Press <span className="font-bold text-primary/80">Run</span> to execute your code — output
+              appears here, and if your program needs input (cin, input(), Scanner…), type it at the $ prompt.
             </p>
           )}
         </div>
-      )}
+      </div>
+    </div>
     </div>
   );
 }
