@@ -508,8 +508,19 @@ export default function CodeEditor({
           </div>
           {!(runResult || checkResult) && (
             <p className="mt-2 text-[11px] leading-relaxed text-primary/50">
-              Press <span className="font-bold text-primary/80">Run</span> to execute your code — output
-              appears here, and if your program needs input (cin, input(), Scanner…), type it at the $ prompt.
+              {online ? (
+                <>
+                  Press <span className="font-bold text-primary/80">Run</span> to execute your code —
+                  output appears here, and if your program needs input (cin, input(), Scanner…), type
+                  it at the $ prompt.
+                </>
+              ) : (
+                <>
+                  You&apos;re offline — your code and notes stay saved.{" "}
+                  <span className="font-bold text-amber-300/80">Run</span> needs an internet
+                  connection to compile remotely.
+                </>
+              )}
             </p>
           )}
         </div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codora-workspace-v6';
+const CACHE_NAME = 'codora-workspace-v7';
 const STATIC_ASSETS = [
   '/',
   '/home',
@@ -7,9 +7,11 @@ const STATIC_ASSETS = [
   '/challenges',
   '/library',
   '/ide',
+  '/world',
   '/progress',
   '/profile',
   '/settings',
+  '/onboarding',
   '/community',
   '/manifest.json',
 ];
@@ -19,13 +21,37 @@ self.addEventListener('install', (event) => {
     (async () => {
       const cache = await caches.open(CACHE_NAME);
 
-      // Cache the app shell pages — never fail the install if one URL hiccups.
+      // 1) Pre-cache the full app-shell HTML for every top-level tab so a
+      //    hard reload works offline right after first install.
       await Promise.allSettled(
-        STATIC_ASSETS.map((url) => cache.add(url).catch(() => {}))
+        STATIC_ASSETS.map((url) =>
+          fetch(url, { cache: 'no-cache' })
+            .then((res) => {
+              if (res.ok) cache.put(url, res);
+            })
+            .catch(() => {})
+        )
       );
 
-      // Also precache the hashed JS/CSS chunks referenced by the home page so
-      // the whole app shell works offline even on a totally fresh install.
+      // 2) Pre-cache the RSC payload for every tab. Next.js client-side
+      //    navigation fetches these to render a route without a full reload,
+      //    so caching them makes clicking the nav/cards work offline too.
+      //    Stored under `<path>?__rsc=1` so it never collides with the HTML.
+      await Promise.allSettled(
+        STATIC_ASSETS.map((url) =>
+          fetch(url, { cache: 'no-cache', headers: { RSC: '1' } })
+            .then((res) => {
+              const type = res.headers.get('content-type') || '';
+              if (res.ok && type.includes('x-component')) {
+                cache.put(url + '?__rsc=1', res);
+              }
+            })
+            .catch(() => {})
+        )
+      );
+
+      // 3) Also pre-cache the hashed JS/CSS chunks referenced by the home
+      //    page so the whole app shell runs offline on a fresh install.
       try {
         const res = await fetch('/', { cache: 'no-cache' });
         const html = await res.text();
@@ -71,18 +97,12 @@ self.addEventListener('fetch', (event) => {
           });
           return response;
         })
-        .catch(async () => {
-          return (
-            (await caches.match(request)) ||
-            (await caches.match('/')) ||
-            Response.error()
-          );
-        })
+        .catch(() => offlineFallback(request))
     );
     return;
   }
 
-  // Cross-origin fonts and the Monaco editor CDN: cache-first for offline.
+  // Cross-origin fonts and other static assets: cache-first for offline.
   event.respondWith(
     (async () => {
       const cached = await caches.match(request);
@@ -100,8 +120,29 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       } catch {
-        return caches.match('/');
+        return (await caches.match('/')) || Response.error();
       }
     })()
   );
 });
+
+async function offlineFallback(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const url = new URL(request.url);
+  const isRsc = request.headers.get('rsc') === '1' || url.searchParams.has('_rsc');
+  url.search = '';
+  const pathKey = url.toString();
+
+  if (isRsc) {
+    const rscHit = await cache.match(pathKey + '?__rsc=1');
+    if (rscHit) return rscHit;
+  }
+
+  const exact = await cache.match(request);
+  if (exact) return exact;
+
+  const pathHit = await cache.match(pathKey);
+  if (pathHit) return pathHit;
+
+  return (await cache.match('/')) || Response.error();
+}
