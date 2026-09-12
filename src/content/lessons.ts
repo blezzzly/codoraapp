@@ -1,4 +1,7 @@
 import type { LessonContent, Topic, KeyConcept, Problem, QuizQuestion } from "@/types";
+import type { LanguageId } from "@/lib/languages";
+import { localizeCppText } from "@/lib/languages";
+import { getSolutionCode } from "@/data/problems";
 
 const QUESTION_POOL = [
   "0", "1", "2", "5", "8", "10", "12", "15", "20", "25", "50", "100", "120", "5040",
@@ -986,32 +989,61 @@ function buildPredictQuiz(problem: Problem): QuizQuestion | null {
   };
 }
 
-export function buildProblemLesson(problem: Problem): LessonContent {
+const READ_FIRST: Record<LanguageId, string> = {
+  cpp: "Always read it first, e.g. with std::cin >>, before you calculate or decide.",
+  java: "Always read it first with your Scanner, e.g. input.nextInt(), before you calculate or decide.",
+  python: "Always read it first with input(), e.g. value = int(input()), before you calculate or decide.",
+};
+
+const LANG_NAME: Record<LanguageId, string> = {
+  cpp: "C++",
+  java: "Java",
+  python: "Python",
+};
+
+const CPP_SYNTAX_TOKENS = ["cin", "cout", "std::", "<<", ">>", "#include", ";", "{", "}"];
+
+function quizIsCppFree(q: QuizQuestion): boolean {
+  const text = `${q.question} ${q.options.join(" ")}`;
+  return !CPP_SYNTAX_TOKENS.some((tok) => text.includes(tok));
+}
+
+export function buildProblemLesson(
+  problem: Problem,
+  langId: LanguageId = "cpp"
+): LessonContent {
   const topic = getTopicForProblem(problem.id);
   const topicContent = topic ? lessonContent[topic] : undefined;
 
   const hasInput = problem.example?.input ? problem.example.input.trim() !== "" : false;
 
+  const readPhrase: Record<LanguageId, (s: string) => string> = {
+    cpp: (s) => `Use std::cin >> to read the input: ${s}.`,
+    java: (s) => `Use the Scanner (input.nextInt()) to read the input: ${s}.`,
+    python: (s) => `Use input() (with int() for numbers) to read the input: ${s}.`,
+  };
+  const printPhrase: Record<LanguageId, (s: string) => string> = {
+    cpp: (s) => `Use std::cout to print your answer: ${s}.`,
+    java: (s) => `Use System.out.print to print your answer: ${s}.`,
+    python: (s) => `Use print() to print your answer: ${s}.`,
+  };
+
   const keyConcepts: KeyConcept[] = [];
   if (hasInput) {
-    keyConcepts.push(
-      key("Read the input", `Use std::cin >> to read the input: ${problem.input}.`),
-    );
+    keyConcepts.push(key("Read the input", readPhrase[langId](problem.input)));
   }
   for (const hint of problem.hints) {
-    keyConcepts.push(key(hint.title, hint.content));
+    const title = localizeCppText(hint.title, langId);
+    const content = localizeCppText(hint.content, langId);
+    keyConcepts.push(key(title, content));
   }
-  keyConcepts.push(
-    key("Print the result", `Use std::cout to print your answer: ${problem.output}.`),
-  );
+  keyConcepts.push(key("Print the result", printPhrase[langId](problem.output)));
   if (keyConcepts.length > 4) keyConcepts.length = 4;
 
   const commonMistakes = [
     {
       mistake: "Forgetting to read the input before computing.",
-      fix: hasInput
-        ? `Always read it first, e.g. with std::cin >>, before you calculate or decide.`
-        : "This problem has no input, so just print the output directly.",
+      fix: hasInput ? READ_FIRST[langId] : "This problem has no input, so just print the output directly.",
     },
     {
       mistake: `Not matching the expected output exactly.`,
@@ -1019,19 +1051,31 @@ export function buildProblemLesson(problem: Problem): LessonContent {
     },
   ];
   if (topicContent?.commonMistakes?.[0]) {
-    commonMistakes.push(topicContent.commonMistakes[0]);
+    commonMistakes.push({
+      mistake: topicContent.commonMistakes[0].mistake,
+      fix: localizeCppText(topicContent.commonMistakes[0].fix, langId),
+    });
   }
 
   const quiz: QuizQuestion[] = [];
   const predict = buildPredictQuiz(problem);
   if (predict) quiz.push(predict);
-  if (topicContent?.quiz?.[0]) quiz.push(topicContent.quiz[0]);
+  if (topicContent?.quiz?.length) {
+    const picked =
+      langId === "cpp" ? topicContent.quiz[0] : topicContent.quiz.find(quizIsCppFree);
+    if (picked) quiz.push(picked);
+  }
+
+  const conceptText = problem.concepts
+    .map((c) => localizeCppText(c, langId))
+    .join(", ")
+    .replace(/,([^,]*)$/, " and$1");
 
   return {
-    whatIsThis: `Your goal in this lesson: ${problem.title}. ${problem.description} You'll practice ${problem.concepts.join(", ").replace(/,([^,]*)$/, " and$1")} and turn it into a working program.`,
+    whatIsThis: `Your goal in this lesson: ${problem.title}. ${problem.description} You'll practice ${conceptText} and turn it into a working program.`,
     whyDoWeUseIt:
       topicContent?.whyDoWeUseIt ??
-      `This is one of the core skills of programming — solving this builds the muscle memory you'll use in every C++ program.`,
+      `This is one of the core skills of programming — solving this builds the muscle memory you'll use in every ${LANG_NAME[langId]} program.`,
     howToThinkAboutIt: `Think in steps: (1) read the input${hasInput ? ` — ${problem.input}` : " (there is none here)"}; (2) do the calculation or decision; (3) print the result — ${problem.output}. Nothing else.`,
     whenToUseIt:
       topicContent?.whenToUseIt ??
@@ -1039,11 +1083,16 @@ export function buildProblemLesson(problem: Problem): LessonContent {
     keyConcepts,
     example: {
       explanation: `A working solution for "${problem.title}". With the sample input${hasInput ? ` "${problem.example!.input}"` : ""}, it produces the output below.`,
-      code: problem.solutionCode,
+      code: getSolutionCode(problem, langId),
       output: problem.example?.output || problem.output,
     },
-    studentTask: `${problem.description} (Input: ${problem.input}; Output: ${problem.output})`,
-    notes: problem.hints.map((hint) => `${hint.title}: ${hint.content}`),
+    studentTask: localizeCppText(
+      `${problem.description} (Input: ${problem.input}; Output: ${problem.output})`,
+      langId
+    ),
+    notes: problem.hints.map((hint) =>
+      localizeCppText(`${hint.title}: ${hint.content}`, langId)
+    ),
     commonMistakes,
     quiz,
   };

@@ -11,6 +11,7 @@ import { CodeBlock } from "@/components/ui/code-block";
 import { LoadingState } from "@/components/ui/states";
 import { useToast } from "@/hooks/use-toast";
 import { saveNote, getNotes } from "@/lib/database";
+import { localizeFilename } from "@/lib/languages";
 import { cn } from "@/lib/utils";
 import type { QuizQuestion } from "@/types";
 
@@ -100,7 +101,7 @@ function Quiz({ quiz }: { quiz: QuizQuestion[] }) {
 
 export default function LearnLessonPage() {
   const params = useParams<{ problemId: string }>();
-  const { problems, isUnlocked, progress, isLoaded } = useApp();
+  const { problems, isUnlocked, progress, isLoaded, language } = useApp();
   const { show } = useToast();
 
   const problem = problems.find((p) => p.id === params.problemId) ?? null;
@@ -131,7 +132,7 @@ export default function LearnLessonPage() {
     );
   }
 
-  const lesson = buildProblemLesson(problem);
+  const lesson = buildProblemLesson(problem, language);
   const unlocked = isUnlocked(problem.id);
   const solved = progress[problem.id]?.status === "solved";
   const previous = problems[problems.findIndex((p) => p.id === problem.id) - 1];
@@ -146,8 +147,8 @@ export default function LearnLessonPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: problem.solutionCode,
-          language: "cpp",
+          code: lesson.example.code,
+          language,
           input: problem.example?.input ?? "",
         }),
       });
@@ -298,7 +299,7 @@ export default function LearnLessonPage() {
                 <h3 className="text-base font-bold text-foreground">Working example</h3>
               </div>
               <Link
-                href={`/ide?problem=${problem.id}&mode=solution&lang=cpp`}
+                href={`/ide?problem=${problem.id}&mode=solution&lang=${language}`}
                 className="text-xs font-bold text-accent underline"
               >
                 Open in IDE
@@ -307,8 +308,8 @@ export default function LearnLessonPage() {
             <p className="mb-3 text-sm text-muted-foreground">{lesson.example.explanation}</p>
             <CodeBlock
               code={lesson.example.code}
-              language="cpp"
-              title={problem.filename}
+              language={language}
+              title={localizeFilename(problem.filename, language)}
               onRun={runExample}
               running={runningExample}
             />
@@ -416,7 +417,7 @@ export default function LearnLessonPage() {
                 </p>
               </div>
               <Link
-                href={`/practice/${problem.id}`}
+                href={`/practice/${problem.id}?lang=${language}`}
                 className="inline-flex h-12 items-center gap-2 rounded-2xl bg-primary px-7 text-sm font-bold text-foreground shadow-lg shadow-black/10 transition-all hover:brightness-[0.97]"
               >
                 <Icon name="Play" size={17} /> Start practice

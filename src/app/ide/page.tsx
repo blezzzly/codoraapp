@@ -158,6 +158,7 @@ export default function IdePage() {
               key={id}
               onClick={() => {
                 setLanguage(id);
+                setCode(getDraft(id));
                 setProgramName("");
               }}
               className={cn(

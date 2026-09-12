@@ -70,3 +70,40 @@ export function isSupportedLanguage(id: string | undefined | null): boolean {
 export function getLanguageLabel(id: string | undefined | null): string {
   return getLanguageConfig(id).label;
 }
+
+const CPP_TOKENS: Record<LanguageId, Array<{ re: RegExp; to: string }>> = {
+  cpp: [],
+  java: [
+    { re: /\bstd::\s*cout\b/g, to: "System.out" },
+    { re: /\bstd::\s*cin\b/g, to: "the Scanner" },
+    { re: /\bstd::\s*endl\b/g, to: "System.out.print" },
+    { re: /\bcout\b/g, to: "System.out" },
+    { re: /\bcin\b/g, to: "the Scanner" },
+  ],
+  python: [
+    { re: /\bstd::\s*cout\b/g, to: "print()" },
+    { re: /\bstd::\s*cin\b/g, to: "input()" },
+    { re: /\bstd::\s*endl\b/g, to: "print()" },
+    { re: /\bcout\b/g, to: "print()" },
+    { re: /\bcin\b/g, to: "input()" },
+  ],
+};
+
+export function localizeCppText(text: string, langId: LanguageId): string {
+  if (langId === "cpp") return text;
+  let out = text;
+  for (const token of CPP_TOKENS[langId]) out = out.replace(token.re, token.to);
+  return out;
+}
+
+const FILE_EXT: Record<LanguageId, string> = {
+  cpp: ".cpp",
+  java: ".java",
+  python: ".py",
+};
+
+export function localizeFilename(filename: string, langId: LanguageId): string {
+  if (langId === "cpp") return filename;
+  const base = filename.replace(/\.\w+$/, "");
+  return `${base}${FILE_EXT[langId]}`;
+}

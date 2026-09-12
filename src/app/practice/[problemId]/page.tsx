@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useApp } from "@/hooks/useApp";
 import { getStarterCode } from "@/data/problems";
 import { getProblemDraft, setProblemDraft } from "@/lib/ideDraft";
-import { LANGUAGES, LanguageId } from "@/lib/languages";
+import { LANGUAGES, LanguageId, localizeCppText } from "@/lib/languages";
 import { Icon } from "@/components/ui/icon";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
@@ -26,12 +26,19 @@ const DIFF_STYLE: Record<string, string> = {
 
 export default function PracticeProblemPage() {
   const params = useParams<{ problemId: string }>();
-  const { problems, progress, isUnlocked, updateProgress, isLoaded } = useApp();
+  const { problems, progress, isUnlocked, updateProgress, isLoaded, language: appLanguage } =
+    useApp();
   const { show } = useToast();
 
   const problem = problems.find((p) => p.id === params.problemId) ?? null;
 
-  const [language, setLanguage] = useState<LanguageId>("cpp");
+  const [language, setLanguage] = useState<LanguageId>(() => {
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search).get("lang");
+      if (q === "cpp" || q === "java" || q === "python") return q;
+    }
+    return appLanguage;
+  });
   const [code, setCode] = useState("");
   const [hasLoadedCode, setHasLoadedCode] = useState(false);
   const [hintsOpen, setHintsOpen] = useState(0);
@@ -279,9 +286,11 @@ export default function PracticeProblemPage() {
                   className="rounded-xl border border-amber-100 bg-amber-50/60 p-3 animate-fade-in-up"
                 >
                   <p className="text-xs font-bold text-amber-700">
-                    Hint {hint.level}: {hint.title}
+                    Hint {hint.level}: {localizeCppText(hint.title, language)}
                   </p>
-                  <p className="mt-0.5 text-sm text-muted-foreground">{hint.content}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {localizeCppText(hint.content, language)}
+                  </p>
                 </div>
               ))}
               {hintsOpen < problem.hints.length && (

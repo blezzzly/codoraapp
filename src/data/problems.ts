@@ -1,5 +1,6 @@
 ﻿import type { Problem, World } from "@/types";
 import type { LanguageId } from "@/lib/languages";
+import { getSolutionCodeFor } from "@/data/solutions";
 
 export const worlds: World[] = [
   {
@@ -1044,10 +1045,7 @@ class Main {
 
 /** Working (solution) code used for lesson examples. C++ is primary. */
 export function getSolutionCode(problem: Problem, langId: LanguageId): string {
-  if (langId === "cpp") {
-    return problem.solutionCode;
-  }
-  return getStarterCode(problem, langId);
+  return getSolutionCodeFor(problem, langId);
 }
 
 /** The first problem the learner has not yet solved, in course order. */
