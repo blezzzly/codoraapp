@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { CodeBlock } from "@/components/ui/code-block";
 import { LoadingState } from "@/components/ui/states";
 import { useToast } from "@/hooks/use-toast";
-import { saveNote, getNotes } from "@/lib/database";
+import { saveNote, getNotes, getQuizAnswers, saveQuizAnswers } from "@/lib/database";
 import { localizeFilename } from "@/lib/languages";
+import type { LanguageId } from "@/lib/languages";
 import { cn } from "@/lib/utils";
 import type { QuizQuestion } from "@/types";
 
@@ -25,15 +26,33 @@ function DIFF_STYLE(difficulty: string): string {
   return map[difficulty] ?? "bg-secondary text-foreground";
 }
 
-function Quiz({ quiz }: { quiz: QuizQuestion[] }) {
-  const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [revealed, setRevealed] = useState<Set<number>>(new Set());
+function Quiz({
+  problemId,
+  language,
+  quiz,
+}: {
+  problemId: string;
+  language: LanguageId;
+  quiz: QuizQuestion[];
+}) {
+  const storageKey = `${problemId}:${language}`;
+  const saved =
+    typeof window !== "undefined" ? getQuizAnswers()[storageKey] : undefined;
+  const [answers, setAnswers] = useState<Record<number, number>>(
+    saved?.answers ?? {}
+  );
+  const [revealed, setRevealed] = useState<Set<number>>(
+    new Set(saved?.revealed ?? [])
+  );
 
   if (quiz.length === 0) return null;
 
   const pick = (qIndex: number, optIndex: number) => {
-    setAnswers((prev) => ({ ...prev, [qIndex]: optIndex }));
-    setRevealed((prev) => new Set(prev).add(qIndex));
+    const nextAnswers = { ...answers, [qIndex]: optIndex };
+    const nextRevealed = new Set(revealed).add(qIndex);
+    setAnswers(nextAnswers);
+    setRevealed(nextRevealed);
+    saveQuizAnswers(storageKey, nextAnswers, [...nextRevealed]);
   };
 
   return (
@@ -371,7 +390,7 @@ export default function LearnLessonPage() {
                 <Icon name="Brain" size={18} className="text-accent" />
                 <h3 className="text-base font-bold text-foreground">Check yourself</h3>
               </div>
-              <Quiz quiz={lesson.quiz} />
+              <Quiz problemId={problem.id} language={language} quiz={lesson.quiz} />
             </div>
           )}
 

@@ -20,6 +20,7 @@ const STORAGE_KEYS = {
   LANGUAGE: "codora_selected_language",
   SAVED_PROGRAMS: "codora_ide_saved",
   CHALLENGES_SOLVED: "codora_challenges_solved",
+  QUIZ_ANSWERS: "codora_quiz_answers",
 } as const;
 
 export const CODORA_PREFIX = "codora_";
@@ -221,6 +222,28 @@ export function toggleBookmark(key: NoteKey): string[] {
   const next = list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
   safeSet(STORAGE_KEYS.BOOKMARKS, next);
   return next;
+}
+
+// ---------------- Quiz answers ----------------
+
+export interface QuizAnswers {
+  answers: Record<number, number>;
+  revealed: number[];
+}
+
+export function getQuizAnswers(): Record<string, QuizAnswers> {
+  const raw = safeGet<Record<string, QuizAnswers> | null>(STORAGE_KEYS.QUIZ_ANSWERS, null);
+  return raw && typeof raw === "object" ? raw : {};
+}
+
+export function saveQuizAnswers(
+  key: string,
+  answers: Record<number, number>,
+  revealed: number[]
+): void {
+  const all = getQuizAnswers();
+  all[key] = { answers, revealed };
+  safeSet(STORAGE_KEYS.QUIZ_ANSWERS, all);
 }
 
 // ---------------- Export / Import ----------------
