@@ -18,6 +18,14 @@ const STEPS = [
 
 const DAILY_GOALS = [3, 5, 10] as const;
 
+const STEP_LABELS: Record<typeof STEPS[number], string> = {
+  welcome: "Welcome",
+  how: "How it works",
+  language: "Language",
+  goal: "Daily Goal",
+  ready: "Ready",
+};
+
 export default function OnboardingPage() {
   const router = useRouter();
   const { setLanguage, updateDailyGoal } = useApp();
@@ -97,7 +105,7 @@ export default function OnboardingPage() {
             <div className="space-y-2">
               <h2 className="text-xl font-bold text-foreground">How it works</h2>
               <p className="text-sm text-muted-foreground">
-                Codora teaches programming by doing, not just reading.
+                I teach programming by doing, not just reading.
               </p>
             </div>
             <div className="w-full space-y-4 text-left">
@@ -105,7 +113,7 @@ export default function OnboardingPage() {
                 {
                   icon: "GraduationCap",
                   title: "Learn",
-                  desc: "Short lessons that explain concepts with examples.",
+                  desc: "Short lessons explain concepts with live code examples.",
                 },
                 {
                   icon: "Target",
@@ -115,7 +123,7 @@ export default function OnboardingPage() {
                 {
                   icon: "TrendingUp",
                   title: "Progress",
-                  desc: "Earn XP, keep a streak, and track what you have learned.",
+                  desc: "Earn XP, keep a streak, and track what you've learned.",
                 },
               ].map((item, i) => (
                 <div
@@ -190,8 +198,10 @@ export default function OnboardingPage() {
                         <p className="font-bold text-foreground">{lang.label}</p>
                         <p className="text-xs text-muted-foreground">
                           {id === "cpp"
-                            ? "Best for learning fundamentals"
-                            : "Functional — write code in the IDE"}
+                            ? "Best for learning fundamentals — full offline support"
+                            : id === "java"
+                            ? "Industry standard — offline via TeaVM"
+                            : "Great for beginners — full offline support"}
                         </p>
                       </div>
                       <span
@@ -267,7 +277,7 @@ export default function OnboardingPage() {
             </span>
             <div>
               <h2 className="text-xl font-bold text-foreground">
-                You&apos;re all set
+                You're all set
               </h2>
               <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
                 You chose{" "}
@@ -309,15 +319,9 @@ export default function OnboardingPage() {
 
       {/* Bottom navigation */}
       {step > 0 && current !== "ready" && (
-        <div className="fixed inset-x-0 bottom-0 z-20 flex justify-between px-6 pb-safe bg-background/80 backdrop-blur-sm border-t border-border/50 pt-3">
-          <button
-            onClick={prev}
-            className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-bold text-foreground"
-          >
-            <Icon name="ChevronLeft" size={16} /> Back
-          </button>
+        <div className="fixed inset-x-0 bottom-0 z-20 flex justify-center px-6 pb-safe bg-background/80 backdrop-blur-sm border-t border-border/50 pt-3">
           <span className="flex items-center text-xs font-semibold text-muted-foreground tabular-nums">
-            {step + 1} / {totalSteps}
+            {STEP_LABELS[current]}
           </span>
         </div>
       )}

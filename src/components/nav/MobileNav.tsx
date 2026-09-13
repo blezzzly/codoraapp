@@ -13,7 +13,7 @@ export default function MobileNav() {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-50 md:hidden safe-bottom"
+      className="fixed inset-x-0 bottom-0 z-50 safe-bottom"
     >
       <div className="mx-auto grid w-full max-w-md grid-cols-5 items-center gap-1 rounded-t-3xl border-t border-border/60 bg-white/95 px-2 pb-1 pt-2 shadow-[0_-6px_24px_-8px_rgba(74,59,94,0.18)] backdrop-blur">
         {primaryNavItems.map((item) => {

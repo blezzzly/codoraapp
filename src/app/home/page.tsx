@@ -19,11 +19,11 @@ export default function HomePage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-extrabold text-foreground">
-              Hi, {profile.username}
+              Hi, {profile.username || 'Learner'}
             </h1>
             <p className="text-sm text-muted-foreground">
               {dailyGoalComplete
-                ? "Daily goal reached — amazing focus"
+                ? "Daily goal reached — amazing focus! 🎉"
                 : "Let's keep the momentum going"}
             </p>
           </div>

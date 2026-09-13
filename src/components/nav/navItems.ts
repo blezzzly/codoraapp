@@ -5,8 +5,8 @@ export interface NavItem {
 }
 
 /**
- * Primary destinations. Mobile bottom navigation shows only the top five for
- * comfortable tap targets; the rest is reachable from Home and Profile.
+ * Primary destinations — mobile-first design. Same items on desktop and mobile
+ * for consistency. No secondary nav - everything reachable from Home and Profile.
  */
 export const primaryNavItems: NavItem[] = [
   { href: "/home", icon: "Home", label: "Home" },
@@ -16,14 +16,8 @@ export const primaryNavItems: NavItem[] = [
   { href: "/profile", icon: "User", label: "Profile" },
 ];
 
-/** Secondary destinations available on the desktop navigation. */
-export const secondaryNavItems: NavItem[] = [
-  { href: "/challenges", icon: "Trophy", label: "Challenges" },
-  { href: "/library", icon: "Library", label: "Library" },
-  { href: "/progress", icon: "TrendingUp", label: "Progress" },
-  { href: "/settings", icon: "Settings", label: "Settings" },
-  { href: "/community", icon: "Users", label: "Community" },
-];
+// Empty - we use primaryNavItems everywhere for mobile-first consistency
+export const secondaryNavItems: NavItem[] = [];
 
 export const allNavItems: NavItem[] = [
   ...primaryNavItems,

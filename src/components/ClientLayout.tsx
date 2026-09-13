@@ -2,7 +2,6 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import DesktopNav from "@/components/nav/DesktopNav";
 import MobileNav from "@/components/nav/MobileNav";
 import MobileHeader from "@/components/nav/MobileHeader";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -29,10 +28,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   return (
     <div className="min-h-dvh bg-background">
       <OfflineBanner />
-      <main className="pb-36 pt-14 md:pb-20 md:pt-16">
+      <main className="pb-24 pt-12">
         {children}
       </main>
-      <DesktopNav />
       <MobileHeader />
       <MobileNav />
       <Toaster />

@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import {
   isNavActive,
   primaryNavItems,
-  secondaryNavItems,
 } from "@/components/nav/navItems";
 import { useApp } from "@/hooks/useApp";
 import { LANGUAGES, LanguageId } from "@/lib/languages";
@@ -37,10 +36,10 @@ export default function DesktopNav() {
   }, []);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 hidden bg-white/90 backdrop-blur-md shadow-sm shadow-black/5 md:block">
-      <div className="mx-auto flex h-16 max-w-5xl items-center gap-4 px-4">
+    <header className="fixed inset-x-0 top-0 z-50 bg-white/90 backdrop-blur-md shadow-sm shadow-black/5">
+      <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-4">
         <Link href="/home" className="flex items-center gap-2.5 shrink-0">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-md shadow-black/10">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary shadow-md shadow-black/10">
             <Icon name="Sparkles" size={20} className="text-foreground" />
           </span>
           <span className="text-lg font-extrabold tracking-tight text-foreground">
@@ -49,26 +48,7 @@ export default function DesktopNav() {
         </Link>
 
         <nav aria-label="Primary" className="flex flex-1 items-center gap-1 overflow-x-auto">
-          {primaryNavItems.slice(0, 4).map((item) => {
-            const isActive = isNavActive(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-foreground/60",
-                  isActive
-                    ? "bg-background text-foreground"
-                    : "text-slate-500 hover:bg-background/60 hover:text-foreground"
-                )}
-                aria-current={isActive ? "page" : undefined}
-              >
-                <Icon name={item.icon} size={16} className={cn(!isActive && "text-slate-400")} />
-                {item.label}
-              </Link>
-            );
-          })}
-          {secondaryNavItems.slice(0, 2).map((item) => {
+          {primaryNavItems.map((item) => {
             const isActive = isNavActive(pathname, item.href);
             return (
               <Link
