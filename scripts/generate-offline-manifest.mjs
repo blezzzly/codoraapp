@@ -42,11 +42,17 @@ const ENGINES = {
     ],
   },
   java: {
-    label: "Java",
-    version: "Browser offline execution unavailable",
+    label: "Java · TeaVM",
+    version: "TeaVM 0.8.0 · OpenJDK javac + WASM runtime",
     bundledWithApp: false,
-    installable: false,
-    assets: [],
+    installable: true,
+    assets: [
+      "/vendor/teavm/compile-classlib-teavm.bin",
+      "/vendor/teavm/compiler.wasm",
+      "/vendor/teavm/compiler.wasm-runtime.js",
+      "/vendor/teavm/runtime-classlib-teavm.bin",
+      "/vendor/teavm/java.worker.js",
+    ],
   },
 };
 

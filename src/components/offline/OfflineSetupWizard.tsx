@@ -46,7 +46,7 @@ function ProgressBar({ value, className }: { value: number; className?: string }
   );
 }
 
-const CHECKABLE: EngineId[] = ["cpp"];
+const CHECKABLE: EngineId[] = ["cpp", "java"];
 
 export default function OfflineSetupWizard({ onClose }: OfflineSetupWizardProps) {
   const [phase, setPhase] = useState<WizardPhase>("checking");
@@ -254,18 +254,17 @@ export default function OfflineSetupWizard({ onClose }: OfflineSetupWizardProps)
               installed
               badge="Included with the app"
             />
-            <div className="flex items-start gap-2.5 rounded-xl border border-dashed border-black/10 bg-slate-50 p-3">
-              <Icon name="Lock" size={18} className="mt-0.5 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-bold text-foreground">Java</p>
-                <p className="text-[11px] leading-snug text-muted-foreground">
-                  Browser offline execution is unavailable. Java runs through{" "}
-                  <span className="font-semibold">online execution with your explicit
-                  consent</span> or the <span className="font-semibold">Codora desktop app</span>{" "}
-                  with a bundled JRE.
-                </p>
-              </div>
-            </div>
+            <LanguageRow
+              icon="FileCode"
+              title="Java"
+              subtitle="TeaVM · OpenJDK javac → WASM · Java 17"
+              size={getEngine("java").totalBytes}
+              checked={selected.java}
+              disabled={!CHECKABLE.includes("java")}
+              onToggle={() => toggle("java")}
+              installed={states?.java?.installed}
+              badge={states?.java?.installed ? "Installed" : undefined}
+            />
           </div>
         )}
 
@@ -401,10 +400,12 @@ export default function OfflineSetupWizard({ onClose }: OfflineSetupWizardProps)
                 status="Included ✓"
                 tone="emerald"
               />
-              <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
-                <span>Java</span>
-                <span>Online / Desktop only</span>
-              </div>
+              <ProgressRow
+                title="Java"
+                value={enginePct}
+                status={enginePct >= 100 ? "✓ Installed" : `${Math.round(enginePct)}%`}
+                tone={enginePct >= 100 ? "emerald" : "muted"}
+              />
             </div>
           </div>
         )}
@@ -469,8 +470,8 @@ export default function OfflineSetupWizard({ onClose }: OfflineSetupWizardProps)
                 <p className="flex items-center gap-2">
                   <Icon name="Check" size={14} className="text-emerald-600" /> Python · Pyodide 0.26.4
                 </p>
-                <p className="flex items-center gap-2 text-muted-foreground">
-                  <Icon name="Lock" size={14} /> Java · Online / Desktop only
+                <p className="flex items-center gap-2">
+                  <Icon name="Check" size={14} className="text-emerald-600" /> Java · TeaVM 0.8.0
                 </p>
                 <p className="flex items-center gap-2 pt-1 text-muted-foreground">
                   <Icon name="Cpu" size={14} /> Installed offline storage:{" "}

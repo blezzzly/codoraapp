@@ -6,7 +6,8 @@ export type OfflineEngine =
   | "unsupported"
   | "clang-wasm"
   | "jscpp"
-  | "pyodide";
+  | "pyodide"
+  | "teavm";
 
 export interface OfflineExecResult {
   output: string;
@@ -18,6 +19,7 @@ export interface OfflineExecResult {
 const CPP_JSCPP_WORKER_URL = "/vendor/jscpp/JSCPP.es5.min.js";
 const CPP_CLANG_WORKER_URL = "/vendor/clang.worker.js";
 const PYTHON_WORKER_URL = "/vendor/pyodide.worker.js";
+const JAVA_WORKER_URL = "/vendor/teavm/java.worker.js";
 
 // Last known C++ engine (set by the runtime manager; refreshed lazily here).
 let cppEngineCache: "clang" | "jscpp" | null = null;
@@ -55,7 +57,7 @@ export async function ensureCppEngine(): Promise<"clang" | "jscpp"> {
 }
 
 export function isOfflineCapable(language: string): boolean {
-  return language === "cpp" || language === "python";
+  return language === "cpp" || language === "python" || language === "java";
 }
 
 function cppWorkerUrl(): string {
@@ -65,6 +67,7 @@ function cppWorkerUrl(): string {
 export function getOfflineWorkerUrl(language: string): string | null {
   if (language === "cpp") return cppWorkerUrl();
   if (language === "python") return PYTHON_WORKER_URL;
+  if (language === "java") return JAVA_WORKER_URL;
   return null;
 }
 
@@ -100,6 +103,7 @@ function getWorker(url: string): Worker {
 const JSCPP_TIMEOUT_MS = 20000;
 const PYTHON_TIMEOUT_MS = 60000;
 const CPP_CLANG_TIMEOUT_MS = 120000;
+const JAVA_TIMEOUT_MS = 120000;
 
 function runInWorker(
   worker: Worker,
@@ -192,6 +196,7 @@ function runInWorker(
 function engineForUrl(url: string): OfflineEngine {
   if (url === CPP_CLANG_WORKER_URL) return "clang-wasm";
   if (url === PYTHON_WORKER_URL) return "pyodide";
+  if (url === JAVA_WORKER_URL) return "teavm";
   return "jscpp";
 }
 
@@ -226,9 +231,11 @@ export async function runOffline(
     const timeout =
       language === "python"
         ? PYTHON_TIMEOUT_MS
-        : engine === "clang-wasm"
-          ? CPP_CLANG_TIMEOUT_MS
-          : JSCPP_TIMEOUT_MS;
+        : language === "java"
+          ? JAVA_TIMEOUT_MS
+          : engine === "clang-wasm"
+            ? CPP_CLANG_TIMEOUT_MS
+            : JSCPP_TIMEOUT_MS;
     const result = await runInWorker(worker, code, input ?? "", timeout);
     // JSCPP is stricter than g++ about `return 0;`. g++ only warns and still
     // exits 0, so a missing return is not a real failure when we got output.

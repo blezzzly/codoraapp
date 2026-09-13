@@ -17,6 +17,8 @@ import {
 //   - the service worker serves /vendor/clang/* from that cache afterwards,
 //   - the editor switches from the light JSCPP mode to the real Clang engine.
 //
+// The Java TeaVM engine (~6.7MB) is also installable for offline Java compilation.
+//
 // State (versions, storage, install time) lives in IndexedDB via `idb`.
 
 export interface EngineFile {
@@ -28,6 +30,7 @@ export interface EngineFile {
 export interface RuntimeState {
   cppClangInstalled: boolean;
   cppEngine: "clang" | "jscpp";
+  javaTeavmInstalled: boolean;
   installedAt?: string;
   storageUsedBytes: number;
   errors?: string[];
@@ -44,6 +47,8 @@ export const CPP_STANDARD_TEXT = "C++17";
 export const PYODIDE_VERSION_TEXT = "Pyodide 0.26.4 · Python 3.12";
 export const PYTHON_NOTE =
   "The full Python standard library is included (offline from the very first run).";
+export const TEAVM_VERSION_TEXT = "TeaVM 0.8.0 · OpenJDK javac + WASM runtime";
+export const JAVA_STANDARD_TEXT = "Java 17 (source level)";
 
 export const CLANG_TOOLCHAIN: EngineFile[] = [
   { url: "/vendor/clang/clang", size: 31214472, label: "Clang compiler (WASM)" },
@@ -57,6 +62,16 @@ export const CLANG_TOOLCHAIN: EngineFile[] = [
 ];
 
 export const CLANG_TOOLCHAIN_BYTES = CLANG_TOOLCHAIN.reduce((n, f) => n + f.size, 0);
+
+export const TEAVM_TOOLCHAIN: EngineFile[] = [
+  { url: "/vendor/teavm/compile-classlib-teavm.bin", size: 199668, label: "TeaVM compile-time classlib" },
+  { url: "/vendor/teavm/compiler.wasm", size: 4126432, label: "TeaVM compiler (WASM)" },
+  { url: "/vendor/teavm/compiler.wasm-runtime.js", size: 11642, label: "TeaVM runtime JS" },
+  { url: "/vendor/teavm/runtime-classlib-teavm.bin", size: 2377497, label: "TeaVM runtime classlib" },
+  { url: "/vendor/teavm/java.worker.js", size: 12303, label: "Java worker bridge" },
+];
+
+export const TEAVM_TOOLCHAIN_BYTES = TEAVM_TOOLCHAIN.reduce((n, f) => n + f.size, 0);
 
 export function formatBytes(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "0 B";
@@ -93,6 +108,7 @@ async function readState(): Promise<RuntimeState> {
   return {
     cppClangInstalled: stored?.cppClangInstalled ?? false,
     cppEngine: stored?.cppEngine ?? "jscpp",
+    javaTeavmInstalled: stored?.javaTeavmInstalled ?? false,
     installedAt: stored?.installedAt,
     storageUsedBytes: stored?.storageUsedBytes ?? 0,
     errors: stored?.errors,
@@ -189,6 +205,7 @@ export async function installCppToolchain(
   const state: RuntimeState = {
     cppClangInstalled: true,
     cppEngine: "clang",
+    javaTeavmInstalled: false,
     installedAt: new Date().toISOString(),
     storageUsedBytes: totalBytes,
   };
@@ -241,7 +258,7 @@ export async function verifyCppToolchain(): Promise<VerifyResult> {
 export async function clearCppToolchain(): Promise<void> {
   const runtimes = await caches.open(RUNTIME_CACHE);
   await Promise.all(CLANG_TOOLCHAIN.map((f) => runtimes.delete(f.url).catch(() => {})));
-  await writeState({ cppClangInstalled: false, cppEngine: "jscpp", storageUsedBytes: 0 });
+  await writeState({ cppClangInstalled: false, cppEngine: "jscpp", javaTeavmInstalled: false, storageUsedBytes: 0 });
   await setEngineRecord({
     id: "cpp",
     manifestVersion: OFFLINE_MANIFEST_VERSION,
@@ -253,6 +270,144 @@ export async function clearCppToolchain(): Promise<void> {
   await setUsedBytes(Math.max(0, (await getUsedBytes()) - CLANG_TOOLCHAIN_BYTES));
   const prefs = await getPrefs();
   await setPref({ ...prefs, cppEngine: "jscpp" });
+}
+
+/** Download the TeaVM toolchain into Cache Storage with progress. */
+export async function installJavaTeavmToolchain(
+  onProgress?: (p: InstallProgress) => void,
+  signal?: AbortSignal
+): Promise<{ ok: boolean; error?: string; canceled?: boolean }> {
+  const available = typeof caches !== "undefined";
+  if (!available) {
+    return { ok: false, error: "This browser does not support Cache Storage." };
+  }
+
+  const runtimes = await caches.open(RUNTIME_CACHE);
+  let doneBytes = 0;
+  const totalBytes = TEAVM_TOOLCHAIN_BYTES;
+
+  onProgress?.({ doneBytes: 0, totalBytes, file: "Preparing…", phase: "downloading" });
+
+  // Drop stale entries first so a failed/partial install always restarts clean.
+  await Promise.all(
+    TEAVM_TOOLCHAIN.map((f) => runtimes.delete(f.url).catch(() => {}))
+  );
+
+  for (const file of TEAVM_TOOLCHAIN) {
+    if (signal?.aborted) return { ok: false, canceled: true };
+    onProgress?.({ doneBytes, totalBytes, file: file.label, phase: "downloading" });
+
+    let res: Response;
+    try {
+      res = await fetch(file.url, { cache: "no-cache", signal });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      const aborted = signal?.aborted;
+      return {
+        ok: false,
+        canceled: aborted,
+        error: aborted
+          ? "Download canceled."
+          : `Could not download ${file.label}. Check your internet connection and try again. (${(err as Error)?.message})`,
+      };
+    }
+
+    const reader = (res as Response).body!.getReader();
+    const chunks: Uint8Array[] = [];
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        doneBytes += value.length;
+        onProgress?.({ doneBytes, totalBytes, file: file.label, phase: "downloading" });
+      }
+    } catch {
+      return {
+        ok: false,
+        canceled: signal?.aborted,
+        error: `Connection dropped while downloading ${file.label}. Tap Download again to retry.`,
+      };
+    }
+
+    try {
+      await runtimes.put(
+        file.url,
+        new Response(new Blob(chunks as unknown as BlobPart[]), {
+          headers: { "Content-Type": "application/octet-stream" },
+        })
+      );
+    } catch (err) {
+      return { ok: false, error: `Could not store ${file.label}: ${(err as Error)?.message}` };
+    }
+  }
+
+  if (signal?.aborted) return { ok: false, canceled: true };
+
+  const state: RuntimeState = {
+    cppClangInstalled: false,
+    cppEngine: "jscpp",
+    javaTeavmInstalled: true,
+    installedAt: new Date().toISOString(),
+    storageUsedBytes: totalBytes,
+  };
+  await writeState(state);
+  await setEngineRecord({
+    id: "java",
+    manifestVersion: OFFLINE_MANIFEST_VERSION,
+    version: TEAVM_VERSION_TEXT,
+    installed: true,
+    filesDone: TEAVM_TOOLCHAIN.map((f) => f.url),
+    installedAt: Date.now(),
+  });
+  await setUsedBytes((await getUsedBytes()) + totalBytes);
+  onProgress?.({ doneBytes: totalBytes, totalBytes, file: "Done", phase: "done" });
+  return { ok: true };
+}
+
+export interface JavaVerifyResult {
+  installed: boolean;
+  totalBytes: number;
+  presentBytes: number;
+  missing: EngineFile[];
+}
+
+/** Check every TeaVM toolchain file is present in the runtime cache and readable. */
+export async function verifyJavaTeavmToolchain(): Promise<JavaVerifyResult> {
+  const runtimes = await caches.open(RUNTIME_CACHE);
+  const missing: EngineFile[] = [];
+  let presentBytes = 0;
+  for (const f of TEAVM_TOOLCHAIN) {
+    const hit = await runtimes.match(f.url);
+    if (!hit || !hit.ok) {
+      missing.push(f);
+    } else {
+      presentBytes += f.size;
+    }
+  }
+  return {
+    installed: missing.length === 0,
+    totalBytes: TEAVM_TOOLCHAIN_BYTES,
+    presentBytes,
+    missing,
+  };
+}
+
+/** Remove the TeaVM toolchain from Cache Storage and reset state. */
+export async function clearJavaTeavmToolchain(): Promise<void> {
+  const runtimes = await caches.open(RUNTIME_CACHE);
+  await Promise.all(TEAVM_TOOLCHAIN.map((f) => runtimes.delete(f.url).catch(() => {})));
+  const state = await readState();
+  await writeState({ ...state, javaTeavmInstalled: false, storageUsedBytes: Math.max(0, state.storageUsedBytes - TEAVM_TOOLCHAIN_BYTES) });
+  await setEngineRecord({
+    id: "java",
+    manifestVersion: OFFLINE_MANIFEST_VERSION,
+    version: null,
+    installed: false,
+    filesDone: [],
+    installedAt: null,
+  });
+  await setUsedBytes(Math.max(0, (await getUsedBytes()) - TEAVM_TOOLCHAIN_BYTES));
 }
 
 /** Current best C++ engine for the installed PWA. */
@@ -283,7 +438,8 @@ export async function runtimeStorageUsage(): Promise<{
   siteUsage?: number;
   siteQuota?: number;
 }> {
-  const v = await verifyCppToolchain();
+  const cppVerify = await verifyCppToolchain();
+  const javaVerify = await verifyJavaTeavmToolchain();
   const navigatorClient = globalThis.navigator as unknown as {
     storage?: { estimate?: () => Promise<{ usage?: number; quota?: number }> };
   };
@@ -294,7 +450,7 @@ export async function runtimeStorageUsage(): Promise<{
     } catch {}
   }
   return {
-    runtimeBytes: v.presentBytes,
+    runtimeBytes: cppVerify.presentBytes + javaVerify.presentBytes,
     siteUsage: est?.usage,
     siteQuota: est?.quota,
   };
