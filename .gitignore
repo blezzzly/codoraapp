@@ -21,6 +21,9 @@
 /build
 /release
 
+# desktop offline runtimes (downloaded by prepare-desktop-runtime.mjs)
+/resources
+
 # misc
 .DS_Store
 *.pem

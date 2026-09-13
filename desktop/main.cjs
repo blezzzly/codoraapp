@@ -9,7 +9,7 @@
 // No cloud judge (Godbolt) and no internet connection are used at all.
 
 const { app, BrowserWindow, ipcMain } = require("electron");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -113,31 +113,56 @@ function runCommand(cmd, args, opts, timeoutMs) {
 function javaFriendlyError(err) {
   if (err && err.code === "ENOENT") {
     return (
-      "Java (JDK) was not found on this computer.\n" +
-      "Install a free JDK (e.g. from https://adoptium.net) so javac and java are available, then restart Codora."
+      "Java (JDK) is not installed, and the bundled runtime is missing. " +
+      "Run `npm run desktop:start` once so Codora downloads its free offline Java runtime."
     );
   }
   return String((err && err.message) || err);
 }
 
-async function runJava(code, input) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codora-java-"));
-  try {
-    // Mirror the web behaviour: `public class Main` is normalised to `class Main`.
-    const source = String(code).replace(/\bpublic\s+class\b/g, "class");
-    fs.writeFileSync(path.join(dir, "Main.java"), source);
+function hasCommand(cmd) {
+  const r = spawnSync(cmd, ["--version"], { stdio: "ignore", timeout: 8000 });
+  return !r.error;
+}
 
-    let compileResult;
-    try {
-      compileResult = await runCommand("javac", ["Main.java"], { cwd: dir }, 20000);
-    } catch (err) {
-      return {
-        output: "",
-        success: false,
-        error: javaFriendlyError(err),
-        engine: "local",
-      };
-    }
+function javaToolchain() {
+  const jreJava =
+    process.platform === "win32"
+      ? path.join(ROOT, "resources", "jre", "bin", "java.exe")
+      : path.join(ROOT, "resources", "jre", "bin", "java");
+  const ecjJar = path.join(ROOT, "resources", "ecj", "ecj.jar");
+  if (fs.existsSync(jreJava) && fs.existsSync(ecjJar)) {
+    return { bundled: true, java: jreJava, ecjJar };
+  }
+  return { bundled: false, java: "java", javac: "javac" };
+}
+
+async function runCpp(code, input) {
+  if (!hasCommand("g++")) {
+    // The front-end falls back to the bundled JSCPP interpreter when this comes
+    // back with engine "unsupported".
+    return {
+      output: "",
+      success: false,
+      error: "No g++ compiler found on this computer; the light C++ interpreter is used instead.",
+      engine: "unsupported",
+    };
+  }
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codora-cpp-"));
+  try {
+    fs.writeFileSync(path.join(dir, "Main.cpp"), String(code || ""));
+
+    const compileResult = await runCommand(
+      "g++",
+      ["-std=c++17", "-O2", "Main.cpp", "-o", "prog"],
+      { cwd: dir },
+      25000
+    ).catch((err) => ({
+      code: 1,
+      stdout: "",
+      stderr: javaFriendlyError(err),
+    }));
 
     if (compileResult.code !== 0) {
       return {
@@ -148,13 +173,88 @@ async function runJava(code, input) {
       };
     }
 
-    const runResult = await runCommand("java", ["-cp", ".", "Main"], {
-      cwd: dir,
-    }, 10000).catch((err) => ({
-      code: -1,
+    const exe = process.platform === "win32" ? path.join(dir, "prog.exe") : path.join(dir, "prog");
+    const runResult = await runCommand(exe, [], { cwd: dir, input }, 8000).catch((err) => ({
+      code: 1,
       stdout: "",
-      stderr: javaFriendlyError(err),
+      stderr: String((err && err.message) || err),
     }));
+
+    if (runResult.code !== 0) {
+      const stderr = runResult.stderr.trim();
+      return {
+        output: stderr || `Process exited with code ${runResult.code}`,
+        success: false,
+        error: stderr || `Process exited with code ${runResult.code}`,
+        engine: "local",
+      };
+    }
+    return { output: runResult.stdout || "(no output)", success: true, engine: "local" };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function runJava(code, input) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "codora-java-"));
+  try {
+    // Mirror the web behaviour: `public class Main` is normalised to `class Main`.
+    const source = String(code).replace(/\bpublic\s+class\b/g, "class");
+    fs.writeFileSync(path.join(dir, "Main.java"), source);
+
+    const tc = javaToolchain();
+    let compileCmd, compileArgs;
+    if (tc.bundled) {
+      compileCmd = tc.java;
+      compileArgs = [
+        "-jar",
+        tc.ecjJar,
+        "-d",
+        dir,
+        "-source",
+        "17",
+        "-target",
+        "17",
+        "-proc:none",
+        path.join(dir, "Main.java"),
+      ];
+    } else {
+      compileCmd = tc.javac || "javac";
+      compileArgs = ["Main.java"];
+    }
+
+    let compileResult;
+    try {
+      compileResult = await runCommand(compileCmd, compileArgs, { cwd: dir }, 30000);
+    } catch (err) {
+      return {
+        output: "",
+        success: false,
+        error: javaFriendlyError(err),
+        engine: "local",
+      };
+    }
+
+    if (compileResult.code !== 0) {
+      // ecj prints warning noise (obsolete source/target) on success too; on
+      // failure only the error block matters.
+      const errText = (compileResult.stderr || "Compilation failed").trim();
+      return {
+        output: "",
+        success: false,
+        error: errText || "Compilation failed",
+        engine: "local",
+      };
+    }
+
+    const runCmd = tc.bundled ? tc.java : tc.java;
+    const runResult = await runCommand(runCmd, ["-cp", dir, "Main"], { cwd: dir, input }, 10000).catch(
+      (err) => ({
+        code: -1,
+        stdout: "",
+        stderr: javaFriendlyError(err),
+      })
+    );
 
     if (runResult.code !== 0) {
       const stderr = runResult.stderr.trim();
@@ -177,6 +277,10 @@ async function runJava(code, input) {
 
 ipcMain.handle("java:run", (_event, payload) => {
   return runJava(payload?.code ?? "", payload?.input ?? "");
+});
+
+ipcMain.handle("cpp:run", (_event, payload) => {
+  return runCpp(payload?.code ?? "", payload?.input ?? "");
 });
 
 function createWindow() {

@@ -17,6 +17,7 @@ import {
 } from "@/lib/offlineExecutor";
 import { isDesktopApp } from "@/lib/desktop";
 import { canRunLocally, runLocally } from "@/lib/localRunner";
+import { friendlyError } from "@/lib/beginnerErrors";
 import type { TestCase } from "@/types";
 
 export interface RunResult {
@@ -127,7 +128,7 @@ async function runRemoteCode(
   }
 }
 
-function localRunOutcome(res: OfflineExecResult): RunResult {
+function localRunOutcome(res: OfflineExecResult, language: LanguageId): RunResult {
   if (res.success) {
     return {
       output: res.output,
@@ -143,7 +144,7 @@ function localRunOutcome(res: OfflineExecResult): RunResult {
     success: false,
     waitingForInput: false,
     isError: true,
-    errorDetail: res.error ?? message,
+    errorDetail: friendlyError(language, message),
     explanation: explainCompileError(message),
     localRun: true,
   };
@@ -217,7 +218,11 @@ async function checkLocalCode(
     const tc = testCases[i];
     const res = await runLocally(code, language, tc.input);
     if (res.engine === "unsupported") {
-      return { passed: false, compileError: res.error, localRun: true };
+      return {
+        passed: false,
+        compileError: friendlyError(language, res.error ?? "Not available on this device."),
+        localRun: true,
+      };
     }
     const actual = normalizeOutputOffline(res.output);
     const expected = normalizeOutputOffline(tc.expectedOutput);
@@ -301,7 +306,7 @@ export default function CodeEditor({
       setAutoFocusInput(false);
       try {
         const local = await runLocally(code, language, input);
-        setRunResult(localRunOutcome(local));
+        setRunResult(localRunOutcome(local, language));
       } catch {
         setRunResult({
           output: "",
@@ -333,7 +338,7 @@ export default function CodeEditor({
         if (outcome.networkError && isOfflineCapable(language)) {
           const local = await runOffline(code, language, input);
           outcome = {
-            ...localRunOutcome(local),
+            ...localRunOutcome(local, language),
             networkError: false,
           };
         }
@@ -347,7 +352,7 @@ export default function CodeEditor({
         }
       } else {
         const local = await runOffline(code, language, input);
-        setRunResult(localRunOutcome(local));
+        setRunResult(localRunOutcome(local, language));
       }
     } catch {
       setRunResult({

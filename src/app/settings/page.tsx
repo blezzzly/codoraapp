@@ -165,7 +165,7 @@ export default function SettingsPage() {
                   Lessons, progress, and the code editor are saved on this device.
                   C++ and Python compile and run right on your device with no
                   internet — even from the very first run. The desktop app also
-                  runs Java offline using a local JDK.
+                  runs Java offline with its bundled runtime.
                 </p>
               </div>
             </div>

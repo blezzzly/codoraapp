@@ -10,9 +10,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "desktop": "npm run build && electron .",
-    "desktop:start": "electron .",
-    "desktop:dist": "npm run build && electron-builder"
+    "desktop": "npm run build && node scripts/prepare-desktop-runtime.mjs && electron .",
+    "desktop:start": "node scripts/prepare-desktop-runtime.mjs && electron .",
+    "desktop:prepare": "node scripts/prepare-desktop-runtime.mjs",
+    "desktop:dist": "npm run build && node scripts/prepare-desktop-runtime.mjs && electron-builder"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",

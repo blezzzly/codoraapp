@@ -15,6 +15,7 @@ import { localizeFilename } from "@/lib/languages";
 import { isOfflineCapable, runOffline } from "@/lib/offlineExecutor";
 import { isDesktopApp } from "@/lib/desktop";
 import { canRunLocally, runLocally } from "@/lib/localRunner";
+import { friendlyError } from "@/lib/beginnerErrors";
 import type { LanguageId } from "@/lib/languages";
 import { cn } from "@/lib/utils";
 import type { QuizQuestion } from "@/types";
@@ -175,7 +176,7 @@ export default function LearnLessonPage() {
         }
         const local = await runLocally(lesson.example.code, language, problem.example?.input ?? "");
         if (!local.success) {
-          setExampleError(local.error || "Could not run the example.");
+          setExampleError(friendlyError(language, local.error ?? "Could not run the example."));
           return;
         }
         setExampleOutput(local.output === "" ? "(no output)" : local.output);
@@ -191,7 +192,7 @@ export default function LearnLessonPage() {
       if (offline) {
         const local = await runOffline(lesson.example.code, language, problem.example?.input ?? "");
         if (!local.success) {
-          setExampleError(local.error || "Could not run the example offline.");
+          setExampleError(friendlyError(language, local.error ?? "Could not run the example offline."));
           return;
         }
         output = local.output;
