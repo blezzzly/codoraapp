@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/ui/modal";
 import { useToast } from "@/hooks/use-toast";
 import { LANGUAGES, LanguageId } from "@/lib/languages";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
+import { useOfflineEngines, OfflineEngineStatus } from "@/hooks/useOfflineEngines";
 import { cn } from "@/lib/utils";
 
 const LANG_ORDER: LanguageId[] = ["cpp", "java", "python"];
@@ -27,6 +28,7 @@ export default function SettingsPage() {
   } = useApp();
   const { show } = useToast();
   const { canInstall, promptInstall } = useInstallPrompt();
+  const { status: offlineStatus, prepare: prepareOffline } = useOfflineEngines();
 
   const [confirmReset, setConfirmReset] = useState(false);
   const [importStatus, setImportStatus] = useState<{ ok: boolean; message: string } | null>(null);
@@ -168,6 +170,11 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+
+          <div className="mt-3 rounded-xl p-3 text-xs font-semibold">
+            {renderEngineStatus(offlineStatus, prepareOffline)}
+          </div>
+
           {canInstall && (
             <button
               onClick={promptInstall}
@@ -300,4 +307,62 @@ export default function SettingsPage() {
       />
     </div>
   );
+}
+
+function renderEngineStatus(status: OfflineEngineStatus, prepare: () => void) {
+  switch (status) {
+    case "ready":
+      return (
+        <div className="flex items-center gap-2 bg-emerald-50 p-3 text-emerald-700">
+          <Icon name="CheckCircle" size={16} className="shrink-0" />
+          <span>
+            Offline ready — C++ and Python run without internet, even on a
+            fresh install.
+          </span>
+        </div>
+      );
+    case "preparing":
+      return (
+        <div className="flex items-center gap-2 bg-amber-50 p-3 text-amber-700">
+          <Icon name="RefreshCw" size={16} className="shrink-0 animate-spin" />
+          <span>
+            Saving offline engines… keep this page open and connected. Takes a
+            few seconds.
+          </span>
+        </div>
+      );
+    case "not-ready":
+      return (
+        <div className="bg-amber-50 p-3 text-amber-700">
+          <div className="flex items-center gap-2">
+            <Icon name="AlertTriangle" size={16} className="shrink-0" />
+            <span>Offline code isn’t saved on this device yet.</span>
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed opacity-90">
+            Press the button once while online and Codora copies its C++ and
+            Python engines onto this device. Afterwards Run works offline.
+          </p>
+          <button
+            onClick={prepare}
+            className="mt-2 flex h-10 items-center gap-2 rounded-xl bg-amber-500 px-4 text-xs font-bold text-white shadow-sm"
+          >
+            <Icon name="CloudDownload" size={15} /> Save offline data
+          </button>
+        </div>
+      );
+    case "unsupported":
+      return (
+        <div className="bg-secondary/60 p-3 text-muted-foreground">
+          Offline engines need a browser with service-worker support (mobile
+          Chrome / Safari). The desktop app always runs offline.
+        </div>
+      );
+    default:
+      return (
+        <div className="flex items-center gap-2 bg-secondary/60 p-3 text-muted-foreground">
+          <Icon name="CircleDot" size={16} className="shrink-0" />
+          <span>Checking offline engines…</span>
+        </div>
+      );
+  }
 }
