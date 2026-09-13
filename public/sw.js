@@ -1,5 +1,11 @@
 const CACHE_NAME = "codora-workspace-v10";
 
+// Separate cache for the large on-demand runtime (Clang toolchain ~60MB).
+// Downloaded once by the runtime manager with progress, then served offline.
+// Never precached, never purged, never auto-cached on first fetch.
+const RUNTIME_CACHE = "codora-runtimes-v1";
+const CLANG_PREFIX = "/vendor/clang/";
+
 // Fallback tab list when public/codora-routes.json cannot be read.
 const DEFAULT_TABS = [
   "/",
@@ -82,7 +88,7 @@ self.addEventListener("activate", (event) => {
       const names = await caches.keys();
       await Promise.all(
         names
-          .filter((name) => name !== CACHE_NAME)
+          .filter((name) => name !== CACHE_NAME && name !== RUNTIME_CACHE)
           .map((name) => caches.delete(name))
       );
       await self.clients.claim();
@@ -191,6 +197,22 @@ function isRscRequest(request) {
   );
 }
 
+async function clangFetch(request) {
+  const runtimes = await caches.open(RUNTIME_CACHE);
+  const hit = await runtimes.match(request);
+  if (hit) return hit;
+  try {
+    const response = await fetchWithTimeout(request);
+    const ok = response && (response.status === 200 || response.status === 0);
+    if (ok && (response.type === "basic" || response.type === "cors")) {
+      return response;
+    }
+    return Response.error();
+  } catch {
+    return Response.error();
+  }
+}
+
 async function cacheFirst(request) {
   const cache = await caches.open(CACHE_NAME);
   const hit = await cache.match(request);
@@ -272,6 +294,10 @@ self.addEventListener("fetch", (event) => {
   // Vendored engines: cache-first so offline Run resolves instantly and is
   // never blocked by a slow network.
   if (url.origin === self.location.origin && url.pathname.startsWith("/vendor/")) {
+    if (url.pathname.startsWith(CLANG_PREFIX)) {
+      event.respondWith(clangFetch(request));
+      return;
+    }
     event.respondWith(cacheFirst(request));
     return;
   }

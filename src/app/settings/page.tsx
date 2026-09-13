@@ -12,6 +12,7 @@ import { LANGUAGES, LanguageId } from "@/lib/languages";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { useOfflineEngines, OfflineEngineStatus } from "@/hooks/useOfflineEngines";
 import { cn } from "@/lib/utils";
+import OfflineEnvironmentCard from "@/components/settings/OfflineEnvironmentCard";
 
 const LANG_ORDER: LanguageId[] = ["cpp", "java", "python"];
 
@@ -163,9 +164,10 @@ export default function SettingsPage() {
                 <p className="text-sm font-bold text-foreground">Offline support</p>
                 <p className="text-xs text-muted-foreground">
                   Lessons, progress, and the code editor are saved on this device.
-                  C++ and Python compile and run right on your device with no
-                  internet — even from the very first run. The desktop app also
-                  runs Java offline with its bundled runtime.
+                  Python runs offline from the very first run. C++ runs offline
+                  too: lightly on first use, or with the full Clang compiler
+                  after you install it in “Offline environment” below. The
+                  desktop app also runs Java offline with its bundled runtime.
                 </p>
               </div>
             </div>
@@ -184,6 +186,12 @@ export default function SettingsPage() {
             </button>
           )}
         </div>
+      </section>
+
+      {/* Offline environment */}
+      <section>
+        <SectionHeader icon="WifiOff" title="Offline environment" />
+        <OfflineEnvironmentCard />
       </section>
 
       {/* Backup */}

@@ -1,6 +1,12 @@
 import type { LanguageId } from "@/lib/languages";
+import { getCppEngine } from "@/lib/runtimeManager";
 
-export type OfflineEngine = "local" | "unsupported";
+export type OfflineEngine =
+  | "local"
+  | "unsupported"
+  | "clang-wasm"
+  | "jscpp"
+  | "pyodide";
 
 export interface OfflineExecResult {
   output: string;
@@ -9,15 +15,28 @@ export interface OfflineExecResult {
   engine: OfflineEngine;
 }
 
-const CPP_WORKER_URL = "/vendor/jscpp/JSCPP.es5.min.js";
+const CPP_JSCPP_WORKER_URL = "/vendor/jscpp/JSCPP.es5.min.js";
+const CPP_CLANG_WORKER_URL = "/vendor/clang.worker.js";
 const PYTHON_WORKER_URL = "/vendor/pyodide.worker.js";
+
+// Last known C++ engine (set by the runtime manager; refreshed lazily here).
+let cppEngineCache: "clang" | "jscpp" | null = null;
+
+/** Tell the executor which on-device C++ engine to prefer. */
+export function setCppEngine(engine: "clang" | "jscpp" | null): void {
+  cppEngineCache = engine;
+}
 
 export function isOfflineCapable(language: string): boolean {
   return language === "cpp" || language === "python";
 }
 
+function cppWorkerUrl(): string {
+  return cppEngineCache === "clang" ? CPP_CLANG_WORKER_URL : CPP_JSCPP_WORKER_URL;
+}
+
 export function getOfflineWorkerUrl(language: string): string | null {
-  if (language === "cpp") return CPP_WORKER_URL;
+  if (language === "cpp") return cppWorkerUrl();
   if (language === "python") return PYTHON_WORKER_URL;
   return null;
 }
@@ -31,6 +50,7 @@ function getWorker(url: string): Worker {
   if (!worker) {
     worker = new Worker(url);
     const w = worker;
+    (w as Worker & { __codoraUrl?: string }).__codoraUrl = url;
     workers.set(url, w);
     pendingForWorker.set(w, []);
     w.onerror = () => {
@@ -52,6 +72,7 @@ function getWorker(url: string): Worker {
 
 const JSCPP_TIMEOUT_MS = 20000;
 const PYTHON_TIMEOUT_MS = 60000;
+const CPP_CLANG_TIMEOUT_MS = 120000;
 
 function runInWorker(
   worker: Worker,
@@ -63,6 +84,7 @@ function runInWorker(
     const id = ++sequence;
     let output = "";
     let settled = false;
+    let timedOut = false;
 
     const cleanup = () => {
       settled = true;
@@ -73,10 +95,22 @@ function runInWorker(
         const idx = pending.indexOf(handlePending);
         if (idx >= 0) pending.splice(idx, 1);
       }
+      // An infinite loop scans forever inside the worker, so the stalled
+      // instance is killed and replaced on the next run.
+      if (timedOut) {
+        const url = (worker as Worker & { __codoraUrl?: string }).__codoraUrl;
+        if (url) workers.delete(url);
+        try {
+          worker.terminate();
+        } catch {
+          /* ignore */
+        }
+      }
     };
 
-    const fail = (error: string) => {
+    const fail = (error: string, isTimeout = false) => {
       if (settled) return;
+      timedOut = isTimeout;
       cleanup();
       resolve({ output, success: false, error, engine: "local" });
     };
@@ -88,7 +122,7 @@ function runInWorker(
     };
 
     const timer = setTimeout(() => {
-      fail("Execution timed out.");
+      fail("Execution timed out.", true);
     }, timeoutMs);
 
     const handlePending = () => {
@@ -128,6 +162,12 @@ function runInWorker(
   });
 }
 
+function engineForUrl(url: string): OfflineEngine {
+  if (url === CPP_CLANG_WORKER_URL) return "clang-wasm";
+  if (url === PYTHON_WORKER_URL) return "pyodide";
+  return "jscpp";
+}
+
 /**
  * Execute source code entirely in the browser. Used when offline (or when the
  * remote judge is unreachable) for languages that have a local runtime.
@@ -137,6 +177,15 @@ export async function runOffline(
   language: LanguageId | string,
   input?: string
 ): Promise<OfflineExecResult> {
+  // C++ engine depends on whether the Clang toolchain was installed.
+  if (language === "cpp" && cppEngineCache === null) {
+    try {
+      cppEngineCache = await getCppEngine();
+    } catch {
+      cppEngineCache = "jscpp";
+    }
+  }
+
   const url = getOfflineWorkerUrl(language);
   if (!url) {
     return {
@@ -147,28 +196,34 @@ export async function runOffline(
     };
   }
 
+  const engine = engineForUrl(url);
   try {
     const worker = getWorker(url);
     const timeout =
-      language === "python" ? PYTHON_TIMEOUT_MS : JSCPP_TIMEOUT_MS;
+      language === "python"
+        ? PYTHON_TIMEOUT_MS
+        : engine === "clang-wasm"
+          ? CPP_CLANG_TIMEOUT_MS
+          : JSCPP_TIMEOUT_MS;
     const result = await runInWorker(worker, code, input ?? "", timeout);
     // JSCPP is stricter than g++ about `return 0;`. g++ only warns and still
     // exits 0, so a missing return is not a real failure when we got output.
     if (
+      engine === "jscpp" &&
       language === "cpp" &&
       !result.success &&
       result.output.trim() !== "" &&
       /you must return a value/i.test(result.error ?? "")
     ) {
-      return { output: result.output, success: true, engine: "local" };
+      return { output: result.output, success: true, engine: "jscpp" };
     }
-    return result;
+    return { ...result, engine };
   } catch (err) {
     return {
       output: "",
       success: false,
       error: String((err as Error)?.message ?? err),
-      engine: "local",
+      engine,
     };
   }
 }

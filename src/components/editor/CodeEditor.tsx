@@ -18,7 +18,26 @@ import {
 import { isDesktopApp } from "@/lib/desktop";
 import { canRunLocally, runLocally } from "@/lib/localRunner";
 import { friendlyError } from "@/lib/beginnerErrors";
+import { javaOfflineNote, currentBackend } from "@/lib/executionBackend";
 import type { TestCase } from "@/types";
+
+const JAVA_CLOUD_CONSENT_KEY = "codora-java-cloud-consent";
+
+function javaCloudConsentGiven(): boolean {
+  try {
+    return localStorage.getItem(JAVA_CLOUD_CONSENT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function grantJavaCloudConsent(): void {
+  try {
+    localStorage.setItem(JAVA_CLOUD_CONSENT_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
 
 export interface RunResult {
   output: string;
@@ -28,6 +47,7 @@ export interface RunResult {
   errorDetail?: string;
   explanation?: { hint: string; why: string; tryChecking: string; line?: number };
   localRun?: boolean;
+  engineLabel?: string;
 }
 
 export interface CheckResult {
@@ -129,6 +149,16 @@ async function runRemoteCode(
 }
 
 function localRunOutcome(res: OfflineExecResult, language: LanguageId): RunResult {
+  const engineLabel =
+    res.engine === "pyodide"
+      ? "Python runtime (Pyodide) — ran on this device"
+      : res.engine === "clang-wasm"
+        ? "Clang WASM compiler — compiled and ran on this device"
+        : res.engine === "jscpp"
+          ? "Light in-browser interpreter — install the full C++ compiler in Settings"
+          : res.engine === "local"
+            ? "Ran on this device"
+            : undefined;
   if (res.success) {
     return {
       output: res.output,
@@ -136,6 +166,7 @@ function localRunOutcome(res: OfflineExecResult, language: LanguageId): RunResul
       waitingForInput: false,
       isError: false,
       localRun: true,
+      engineLabel,
     };
   }
   const message = res.output || res.error || "Unknown error";
@@ -147,6 +178,7 @@ function localRunOutcome(res: OfflineExecResult, language: LanguageId): RunResul
     errorDetail: friendlyError(language, message),
     explanation: explainCompileError(message),
     localRun: true,
+    engineLabel,
   };
 }
 
@@ -269,6 +301,7 @@ export default function CodeEditor({
   const [copied, setCopied] = useState(false);
   const [autoFocusInput, setAutoFocusInput] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [javaConsentPending, setJavaConsentPending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const config = getLanguageConfig(language);
@@ -320,6 +353,20 @@ export default function CodeEditor({
       }
       return;
     }
+    if (language === "java") {
+      if (!online) {
+        show({
+          title: "Java can't run offline in a web browser",
+          description: javaOfflineNote,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!javaCloudConsentGiven()) {
+        setJavaConsentPending(true);
+        return;
+      }
+    }
     if (!online && !isOfflineCapable(language)) {
       show({
         title: `Can't run ${LANGUAGES[language].label} offline`,
@@ -333,15 +380,18 @@ export default function CodeEditor({
     setRunResult(null);
     setAutoFocusInput(false);
     try {
-      if (online) {
-        let outcome = await runRemoteCode(code, language, input);
-        if (outcome.networkError && isOfflineCapable(language)) {
-          const local = await runOffline(code, language, input);
-          outcome = {
-            ...localRunOutcome(local, language),
-            networkError: false,
-          };
+      // Local-first: whenever code can run on this device, it does — even
+      // while online. The remote judge is only a fallback or the
+      // explicitly-consented Java path.
+      if (isOfflineCapable(language)) {
+        const local = await runLocally(code, language, input);
+        if (local.engine !== "unsupported") {
+          setRunResult(localRunOutcome(local, language));
+          return;
         }
+      }
+      if (online) {
+        const outcome = await runRemoteCode(code, language, input);
         setRunResult(outcome);
         if (outcome.waitingForInput) {
           setAutoFocusInput(true);
@@ -414,11 +464,16 @@ export default function CodeEditor({
     setChecking(true);
     setCheckResult(null);
     try {
+      // Local-first, same as Run: offline-capable languages are always checked
+      // on-device; the online judge is only a fallback.
+      if (isOfflineCapable(language)) {
+        const result = await checkLocalCode(code, language, testCases);
+        setCheckResult(result);
+        onCheckResult?.(result.passed);
+        return;
+      }
       if (online) {
-        let result = await checkRemoteCode(code, language, testCases);
-        if (result.networkError && isOfflineCapable(language)) {
-          result = await checkLocalCode(code, language, testCases);
-        }
+        const result = await checkRemoteCode(code, language, testCases);
         setCheckResult(result);
         onCheckResult?.(result.passed);
       } else {
@@ -649,12 +704,27 @@ export default function CodeEditor({
                 : runResult.output}
             </pre>
           )}
+          {runResult?.localRun && runResult.engineLabel && (
+            <p className="mt-1 text-[11px] font-medium text-emerald-200/60">
+              {runResult.engineLabel}
+            </p>
+          )}
 
           {(checkResult?.compileError || runResult?.isError) && (
             <div className="mt-2 space-y-2">
               <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-rose-500/20 bg-rose-950/40 p-3 font-mono text-[12px] leading-relaxed text-rose-300">
                 {checkResult?.compileError || runResult?.errorDetail || runResult?.output}
               </pre>
+              {runResult?.isError && runResult.output && runResult.output !== runResult.errorDetail && (
+                <details className="rounded-xl border border-white/10 bg-black/20 p-2 text-[11px]">
+                  <summary className="cursor-pointer select-none font-sans font-semibold text-primary/70">
+                    Show technical compiler output
+                  </summary>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-rose-200/70">
+                    {runResult.output}
+                  </pre>
+                </details>
+              )}
               {(checkResult?.explanation || runResult?.explanation) && (
                 <div className="rounded-xl border border-primary/20 bg-primary/10 p-3 text-xs leading-relaxed text-primary-foreground">
                   {(() => {
@@ -726,8 +796,40 @@ export default function CodeEditor({
             </p>
           )}
         </div>
-      </div>
-    </div>
+        </div>
+        </div>
+      {javaConsentPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#241a33] p-5 shadow-2xl">
+            <h3 className="text-lg font-bold text-white">
+              Java uses your internet connection
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-[#e8d5f5]">
+              A web browser cannot run Java on its own — the browser&apos;s sandbox
+              has no JVM. To run this Java code, Codora would send your source
+              code to an online compiler over the internet.
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-[#e8d5f5]">
+              {currentBackend().javaNote}
+            </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button onClick={() => setJavaConsentPending(false)} variant="ghost">
+                Cancel
+              </Button>
+              <Button
+                data-testid="use-online-compiler"
+                onClick={() => {
+                  grantJavaCloudConsent();
+                  setJavaConsentPending(false);
+                  handleRun();
+                }}
+              >
+                Use Online Compiler
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
