@@ -16,6 +16,7 @@ import {
   type RuntimeSnapshot,
 } from "@/lib/offlineRuntime/manager";
 import { setCppEngine } from "@/lib/offlineExecutor";
+import { runOfflineSelfTest } from "@/lib/offlineSelfTest";
 import { currentBackend, javaOfflineNote } from "@/lib/executionBackend";
 import { isDesktopApp } from "@/lib/desktop";
 
@@ -159,6 +160,31 @@ export default function OfflineEnvironmentCard() {
             }
       );
       return { ok: true };
+    });
+  }, [run, show]);
+
+  const selfTest = useCallback(() => {
+    void run(async () => {
+      const res = await runOfflineSelfTest();
+      const cppLine = res.cpp.installed
+        ? `C++ verified${res.cpp.verified ? " + probe ran" : " (hash mismatch)"}`
+        : "C++ not installed";
+      const pyLine = res.python.installed
+        ? `Python verified${res.python.verified ? " + probe ran" : " (hash mismatch)"}`
+        : "Python not installed";
+      if (res.ok) {
+        show({
+          title: "Offline self-test passed",
+          description: `${cppLine} · ${pyLine}. C++ and Python Run work with no internet.`,
+        });
+      } else {
+        show({
+          title: "Offline self-test found issues",
+          description: `${cppLine} · ${pyLine}. ${res.errors.join("; ")}`,
+          variant: "destructive",
+        });
+      }
+      return { ok: res.ok };
     });
   }, [run, show]);
 
@@ -325,6 +351,13 @@ export default function OfflineEnvironmentCard() {
           className="inline-flex items-center gap-1 rounded-lg border border-black/5 bg-slate-50 px-2.5 py-1.5 font-bold text-primary/80 hover:text-primary"
         >
           <Icon name="Lock" size={12} /> Request persistent storage
+        </button>
+        <button
+          onClick={selfTest}
+          disabled={busy}
+          className="inline-flex items-center gap-1 rounded-lg border border-black/5 bg-slate-50 px-2.5 py-1.5 font-bold text-emerald-600 hover:text-emerald-700"
+        >
+          <Icon name="CheckCheck" size={12} /> Run offline self-test
         </button>
       </div>
 

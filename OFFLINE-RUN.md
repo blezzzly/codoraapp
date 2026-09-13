@@ -204,3 +204,36 @@ PWA restart:  ✓ verified via IndexedDB registry + Cache Storage (tested air-ga
 Air-gapped:   ✓ C++ (7 programs) · ✓ Python (6 checks) · ✓ manager (6 cases)
 Silent upload:✓ none — local-first; Java uploads only after explicit consent
 ```
+
+
+## 11. Mobile PWA offline readiness (this session)
+
+The user-facing requirement is "offline must work on the installed mobile PWA".
+Pipeline on a phone:
+
+- **Python**: all Pyodide assets (`pyodide.js`, `pyodide.asm.{js,wasm}`, `python_stdlib.zip`,
+  `pyodide-lock.json`, `pyodide.worker.js`) are precached by the service worker
+  during SW install, so Python works offline from the first open — no wizard step.
+- **C++**: installed via the wizard into the SW-exempt `codora-runtimes-v1`
+  cache; the SW serves `/vendor/clang/*` + `clang.worker.js` from it, so a
+  fully-terminated + reopened + airplane-mode PWA still resolves the toolchain.
+- **Storage**: install requests `navigator.storage.persist()` and warns when not
+  granted; `estimate()` pre-checks quota before any bulk download; if the
+  browser reports unknown quota the install is allowed (not falsely blocked).
+- **Version floor**: Pyodide 0.26 (BigInt64Array WASM) needs iOS Safari 15+ and
+  Android Chrome 85+. Older iOS shows an honest message instead of failing at
+  runtime.
+- **Proof, in-app**: Settings → Offline environment → **Run offline self-test**
+  (also offered on the wizard ready screen) uses the exact `runOffline` path the
+  editor uses: engine registry → SHA-256 over every stored file → compiles and
+  runs a C++ and a Python probe → reports a clear pass/fail. This is how a
+  mobile-PWA tester confirms Run works with no network.
+
+### CheerpJ (Java in the browser) — evaluated, declined
+The only real browser JVM is CheerpJ (Leaning Technologies). Tried to vendor
+its runtime: their download is license-activated ("Activate your license"),
+docs are gated (HTTP 403), and the runtime is not freely redistributable.
+Bundling it would both be legally risky for the repo and unverifiable, so it is
+NOT shipped. Java stays: desktop = bundled JRE + ecj (full offline library),
+browser = online judge with explicit consent. C++ and Python are the fully
+offline languages, on mobile and everywhere.

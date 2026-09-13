@@ -17,6 +17,10 @@ import {
   type RuntimeSnapshot,
 } from "@/lib/offlineRuntime/manager";
 import { setPref } from "@/lib/offlineRuntime/registry";
+import {
+  runOfflineSelfTest,
+  type OfflineSelfTestResult,
+} from "@/lib/offlineSelfTest";
 
 type WizardPhase =
   | "choose"
@@ -55,6 +59,7 @@ export default function OfflineSetupWizard({ onClose }: OfflineSetupWizardProps)
   });
   const [progress, setProgress] = useState<InstallProgress | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
+  const [selfTest, setSelfTest] = useState<OfflineSelfTestResult | "running" | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
@@ -160,6 +165,13 @@ export default function OfflineSetupWizard({ onClose }: OfflineSetupWizardProps)
   const cancelInstall = useCallback(() => {
     controllerRef.current?.abort();
   }, []);
+
+  const runSelfTest = useCallback(async () => {
+    if (selfTest === "running") return;
+    setSelfTest("running");
+    const res = await runOfflineSelfTest();
+    setSelfTest(res);
+  }, [selfTest]);
 
   const toggle = useCallback((id: EngineId) => {
     if (!CHECKABLE.includes(id)) return;
@@ -466,6 +478,50 @@ export default function OfflineSetupWizard({ onClose }: OfflineSetupWizardProps)
                 </p>
               </div>
             </div>
+            <button
+              onClick={runSelfTest}
+              disabled={selfTest === "running"}
+              className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white text-xs font-bold text-emerald-700 active:scale-[0.99] disabled:opacity-60"
+            >
+              <Icon name="CheckCheck" size={15} />
+              {selfTest === "running"
+                ? "Compiling probe programs…"
+                : "Test C++ & Python now (offline)"}
+            </button>
+            {selfTest && selfTest !== "running" && (
+              <div
+                className={cn(
+                  "mt-2 rounded-xl border p-3 text-[11px] font-semibold leading-relaxed",
+                  selfTest.ok
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-rose-200 bg-rose-50 text-rose-700"
+                )}
+              >
+                {selfTest.ok ? (
+                  <>
+                    <p className="inline-flex items-center gap-1.5">
+                      <Icon name="Check" size={13} /> C++ compiled and printed its probe output fully offline.
+                    </p>
+                    <p className="mt-1 inline-flex items-center gap-1.5">
+                      <Icon name="Check" size={13} /> Python ran its probe fully offline.
+                    </p>
+                  </>
+                ) : (
+                  <div>
+                    <p>Something still needs attention:</p>
+                    {selfTest.errors.map((e) => (
+                      <p key={e} className="mt-1 font-normal">
+                        • {e}
+                      </p>
+                    ))}
+                    <p className="mt-1 font-normal">
+                      Use Settings → Offline environment → Repair if engines are listed
+                      here.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
             <button
               onClick={continueWithoutSetup}
               className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-extrabold text-foreground shadow-sm active:scale-[0.99]"
