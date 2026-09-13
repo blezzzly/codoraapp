@@ -12,6 +12,7 @@ import { LoadingState } from "@/components/ui/states";
 import { useToast } from "@/hooks/use-toast";
 import { saveNote, getNotes, getQuizAnswers, saveQuizAnswers } from "@/lib/database";
 import { localizeFilename } from "@/lib/languages";
+import { isOfflineCapable, runOffline } from "@/lib/offlineExecutor";
 import type { LanguageId } from "@/lib/languages";
 import { cn } from "@/lib/utils";
 import type { QuizQuestion } from "@/types";
@@ -162,24 +163,44 @@ export default function LearnLessonPage() {
     setExampleOutput(null);
     setExampleError(null);
     try {
-      const res = await fetch("/api/run-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: lesson.example.code,
-          language,
-          input: problem.example?.input ?? "",
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      if (data?.success) {
-        const out = data.output ?? "";
-        setExampleOutput(out === "" ? "(no output)" : out);
-      } else {
-        setExampleError(String(data?.output ?? "Could not run the example."));
+      const offline = typeof navigator !== "undefined" && !navigator.onLine;
+      if (offline && !isOfflineCapable(language)) {
+        setExampleError(
+          "Java examples need an internet connection. C++ and Python run offline."
+        );
+        return;
       }
+      let output = "";
+      if (offline) {
+        const local = await runOffline(lesson.example.code, language, problem.example?.input ?? "");
+        if (!local.success) {
+          setExampleError(local.error || "Could not run the example offline.");
+          return;
+        }
+        output = local.output;
+      } else {
+        const res = await fetch("/api/run-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: lesson.example.code,
+            language,
+            input: problem.example?.input ?? "",
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (data?.success) {
+          output = data.output ?? "";
+        } else {
+          setExampleError(String(data?.output ?? "Could not run the example."));
+          return;
+        }
+      }
+      setExampleOutput(output === "" ? "(no output)" : output);
     } catch {
-      setExampleError("Code execution requires an internet connection.");
+      setExampleError(
+        "Could not run the example. C++ and Python run offline; Java needs an internet connection."
+      );
     } finally {
       setRunningExample(false);
     }

@@ -160,8 +160,9 @@ export default function SettingsPage() {
               <div>
                 <p className="text-sm font-bold text-foreground">Offline support</p>
                 <p className="text-xs text-muted-foreground">
-                  Lessons and progress are saved on this device and work offline.
-                  Running code always needs the internet.
+                  Lessons, progress, and the code editor are saved on this device.
+                  C++ and Python compile and run right on your device with no
+                  internet — even from the very first run.
                 </p>
               </div>
             </div>

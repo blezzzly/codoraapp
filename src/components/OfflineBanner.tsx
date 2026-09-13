@@ -16,8 +16,8 @@ export function OfflineBanner() {
     >
       <Icon name="WifiOff" size={15} className="shrink-0 text-primary" />
       <span>
-        You&apos;re offline. Lessons and progress still work. Running code needs
-        the internet.
+        You&apos;re offline. Lessons, progress, and C++ / Python code still work
+        on your device. Java needs the internet.
       </span>
     </div>
   );

@@ -9,6 +9,12 @@ import { cn } from "@/lib/utils";
 import { LANGUAGES, LanguageId } from "@/lib/languages";
 import { getLanguageConfig } from "@/lib/languages";
 import { explainCompileError } from "@/lib/explainError";
+import {
+  isOfflineCapable,
+  normalizeOutputOffline,
+  runOffline,
+  type OfflineExecResult,
+} from "@/lib/offlineExecutor";
 import type { TestCase } from "@/types";
 
 export interface RunResult {
@@ -18,13 +24,213 @@ export interface RunResult {
   isError?: boolean;
   errorDetail?: string;
   explanation?: { hint: string; why: string; tryChecking: string; line?: number };
+  localRun?: boolean;
 }
 
 export interface CheckResult {
   passed: boolean;
   compileError?: string;
   explanation?: RunResult["explanation"];
+  localRun?: boolean;
   results?: { index: number; passed: boolean; expectedOutput: string; actualOutput: string }[];
+}
+
+interface RemoteOutcome extends RunResult {
+  networkError?: boolean;
+}
+
+async function runRemoteCode(
+  code: string,
+  language: LanguageId,
+  input: string
+): Promise<RemoteOutcome> {
+  try {
+    const res = await fetch("/api/run-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        input.trim() ? { code, language, input } : { code, language }
+      ),
+    });
+    const data = await res.json().catch(() => null);
+    if (res.status === 429) {
+      return {
+        output: "",
+        success: false,
+        waitingForInput: false,
+        isError: true,
+        errorDetail: "Too many requests. Please wait a moment and try again.",
+      };
+    }
+    if (!data) {
+      return {
+        output: "",
+        success: false,
+        waitingForInput: false,
+        isError: true,
+        errorDetail: "The code service returned an empty response. Try again.",
+      };
+    }
+    if (data.waitingForInput) {
+      return {
+        output: data.output ?? "",
+        success: false,
+        waitingForInput: true,
+        isError: false,
+      };
+    }
+    if (data.success) {
+      return {
+        output: data.output ?? "",
+        success: true,
+        waitingForInput: false,
+        isError: false,
+      };
+    }
+    const explanation = data.explanation
+      ? {
+          hint: String(data.explanation?.hint ?? ""),
+          why: String(data.explanation?.why ?? ""),
+          tryChecking: String(data.explanation?.tryChecking ?? ""),
+          line: data.explanation?.line,
+        }
+      : explainCompileError(String(data.output ?? ""));
+    return {
+      output: data.output ?? "",
+      success: false,
+      waitingForInput: false,
+      isError: true,
+      errorDetail:
+        typeof data.errorType === "string" ? data.errorType : undefined,
+      explanation,
+    };
+  } catch (err) {
+    if (err instanceof TypeError) {
+      return {
+        output: "",
+        success: false,
+        waitingForInput: false,
+        isError: true,
+        errorDetail: "Could not reach the code service.",
+        networkError: true,
+      };
+    }
+    return {
+      output: "",
+      success: false,
+      waitingForInput: false,
+      isError: true,
+      errorDetail: "Something went wrong while running your code.",
+    };
+  }
+}
+
+function localRunOutcome(res: OfflineExecResult): RunResult {
+  if (res.success) {
+    return {
+      output: res.output,
+      success: true,
+      waitingForInput: false,
+      isError: false,
+      localRun: true,
+    };
+  }
+  const message = res.output || res.error || "Unknown error";
+  return {
+    output: message,
+    success: false,
+    waitingForInput: false,
+    isError: true,
+    errorDetail: res.error ?? message,
+    explanation: explainCompileError(message),
+    localRun: true,
+  };
+}
+
+async function checkRemoteCode(
+  code: string,
+  language: LanguageId,
+  testCases: TestCase[]
+): Promise<CheckResult & { networkError?: boolean }> {
+  try {
+    const res = await fetch("/api/check-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, language, testCases }),
+    });
+    const data = await res.json().catch(() => null);
+    if (res.status === 429) {
+      return {
+        passed: false,
+        compileError: "Too many requests. Please wait a moment and try again.",
+      };
+    }
+    if (!data) {
+      return {
+        passed: false,
+        compileError: "The code service returned an empty response. Try again.",
+      };
+    }
+    if (data.compileError) {
+      return {
+        passed: false,
+        compileError: String(data.compileError),
+        explanation: data.explanation
+          ? {
+              hint: String(data.explanation?.hint ?? ""),
+              why: String(data.explanation?.why ?? ""),
+              tryChecking: String(data.explanation?.tryChecking ?? ""),
+              line: data.explanation?.line,
+            }
+          : undefined,
+      };
+    }
+    const results = Array.isArray(data.results) ? data.results : [];
+    const passed =
+      results.length > 0 &&
+      results.every((r: { passed: boolean }) => r.passed);
+    return { passed, results };
+  } catch (err) {
+    if (err instanceof TypeError) {
+      return {
+        passed: false,
+        compileError: "Could not reach the code service.",
+        networkError: true,
+      };
+    }
+    return {
+      passed: false,
+      compileError: "Something went wrong while checking your code.",
+    };
+  }
+}
+
+async function checkLocalCode(
+  code: string,
+  language: LanguageId,
+  testCases: TestCase[]
+): Promise<CheckResult> {
+  const results: CheckResult["results"] = [];
+  for (let i = 0; i < testCases.length; i++) {
+    const tc = testCases[i];
+    const res = await runOffline(code, language, tc.input);
+    if (res.engine === "unsupported") {
+      return { passed: false, compileError: res.error, localRun: true };
+    }
+    const actual = normalizeOutputOffline(res.output);
+    const expected = normalizeOutputOffline(tc.expectedOutput);
+    results.push({
+      index: i,
+      passed: res.success && actual === expected,
+      expectedOutput: tc.expectedOutput,
+      actualOutput: res.success ? res.output : `Error: ${res.error ?? ""}`,
+    });
+  }
+  return {
+    passed: results.length > 0 && results.every((r) => r.passed),
+    results,
+    localRun: true,
+  };
 }
 
 interface CodeEditorProps {
@@ -71,105 +277,53 @@ export default function CodeEditor({
     setCheckResult(null);
   }
 
-  const ensureOnline = (): boolean => {
-    if (!online) {
-      show({
-        title: "You're offline",
-        description: "Code execution requires an internet connection.",
-        variant: "destructive",
-      });
-      return false;
-    }
-    return true;
-  };
-
   const handleRun = useCallback(async () => {
     if (running) return;
-    if (!ensureOnline()) return;
     if (!code.trim()) {
       show({ title: "Write some code first", variant: "default" });
+      return;
+    }
+    if (!online && !isOfflineCapable(language)) {
+      show({
+        title: `Can't run ${LANGUAGES[language].label} offline`,
+        description:
+          "Java needs an internet connection. C++ and Python run on your device.",
+        variant: "destructive",
+      });
       return;
     }
     setRunning(true);
     setRunResult(null);
     setAutoFocusInput(false);
     try {
-      const res = await fetch("/api/run-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          input.trim() ? { code, language, input } : { code, language }
-        ),
-      });
-      const data = await res.json().catch(() => null);
-      if (res.status === 429) {
-        setRunResult({
-          output: "",
-          success: false,
-          waitingForInput: false,
-          isError: true,
-          errorDetail: "Too many requests. Please wait a moment and try again.",
-        });
-        return;
-      }
-      if (!data) {
-        setRunResult({
-          output: "",
-          success: false,
-          waitingForInput: false,
-          isError: true,
-          errorDetail: "The code service returned an empty response. Try again.",
-        });
-        return;
-      }
-      if (data.waitingForInput) {
-        setRunResult({
-          output: data.output ?? "",
-          success: false,
-          waitingForInput: true,
-          isError: false,
-        });
-        setAutoFocusInput(true);
-        show({
-          title: "Program is waiting for input",
-          description: "Type your input at the $ prompt below, then press Run.",
-        });
-      } else if (data.success) {
-        setRunResult({
-          output: data.output ?? "",
-          success: true,
-          waitingForInput: false,
-          isError: false,
-        });
+      if (online) {
+        let outcome = await runRemoteCode(code, language, input);
+        if (outcome.networkError && isOfflineCapable(language)) {
+          const local = await runOffline(code, language, input);
+          outcome = {
+            ...localRunOutcome(local),
+            networkError: false,
+          };
+        }
+        setRunResult(outcome);
+        if (outcome.waitingForInput) {
+          setAutoFocusInput(true);
+          show({
+            title: "Program is waiting for input",
+            description: "Type your input at the $ prompt below, then press Run.",
+          });
+        }
       } else {
-        const explanation = data.explanation
-          ? {
-              hint: String(data.explanation?.hint ?? ""),
-              why: String(data.explanation?.why ?? ""),
-              tryChecking: String(data.explanation?.tryChecking ?? ""),
-              line: data.explanation?.line,
-            }
-          : explainCompileError(String(data.output ?? ""));
-        setRunResult({
-          output: data.output ?? "",
-          success: false,
-          waitingForInput: false,
-          isError: true,
-          errorDetail:
-            typeof data.errorType === "string" ? data.errorType : undefined,
-          explanation,
-        });
+        const local = await runOffline(code, language, input);
+        setRunResult(localRunOutcome(local));
       }
-    } catch (err) {
+    } catch {
       setRunResult({
         output: "",
         success: false,
         waitingForInput: false,
         isError: true,
-        errorDetail:
-          err instanceof TypeError
-            ? "Could not reach the code service."
-            : "Something went wrong while running your code.",
+        errorDetail: "Something went wrong while running your code.",
       });
     } finally {
       setRunning(false);
@@ -184,60 +338,34 @@ export default function CodeEditor({
       show({ title: "Write some code first", variant: "default" });
       return;
     }
-    if (!ensureOnline()) return;
+    if (!online && !isOfflineCapable(language)) {
+      show({
+        title: `Can't check ${LANGUAGES[language].label} offline`,
+        description:
+          "Java needs an internet connection. C++ and Python run on your device.",
+        variant: "destructive",
+      });
+      return;
+    }
     setChecking(true);
     setCheckResult(null);
     try {
-      const res = await fetch("/api/check-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, testCases }),
-      });
-      const data = await res.json().catch(() => null);
-      if (res.status === 429) {
-        setCheckResult({
-          passed: false,
-          compileError:
-            "Too many requests. Please wait a moment and try again.",
-        });
-        onCheckResult?.(false);
-        return;
+      if (online) {
+        let result = await checkRemoteCode(code, language, testCases);
+        if (result.networkError && isOfflineCapable(language)) {
+          result = await checkLocalCode(code, language, testCases);
+        }
+        setCheckResult(result);
+        onCheckResult?.(result.passed);
+      } else {
+        const result = await checkLocalCode(code, language, testCases);
+        setCheckResult(result);
+        onCheckResult?.(result.passed);
       }
-      if (!data) {
-        setCheckResult({
-          passed: false,
-          compileError: "The code service returned an empty response. Try again.",
-        });
-        onCheckResult?.(false);
-        return;
-      }
-      if (data.compileError) {
-        setCheckResult({
-          passed: false,
-          compileError: String(data.compileError),
-          explanation: data.explanation
-            ? {
-                hint: String(data.explanation?.hint ?? ""),
-                why: String(data.explanation?.why ?? ""),
-                tryChecking: String(data.explanation?.tryChecking ?? ""),
-                line: data.explanation?.line,
-              }
-            : undefined,
-        });
-        onCheckResult?.(false);
-        return;
-      }
-      const results = Array.isArray(data.results) ? data.results : [];
-      const passed = results.length > 0 && results.every((r: { passed: boolean }) => r.passed);
-      setCheckResult({ passed, results });
-      onCheckResult?.(passed);
-    } catch (err) {
+    } catch {
       setCheckResult({
         passed: false,
-        compileError:
-          err instanceof TypeError
-            ? "Could not reach the code service."
-            : "Something went wrong while checking your code.",
+        compileError: "Something went wrong while checking your code.",
       });
       onCheckResult?.(false);
     } finally {
@@ -382,6 +510,11 @@ export default function CodeEditor({
               <div className="mb-2 flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary/70">
                   <Icon name="Terminal" size={13} /> Output
+                  {(runResult?.localRun || checkResult?.localRun) && (
+                    <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[9px] font-bold normal-case tracking-normal text-primary">
+                      ran offline on your device
+                    </span>
+                  )}
                 </span>
                 <button
                   onClick={() => {
@@ -517,8 +650,8 @@ export default function CodeEditor({
               ) : (
                 <>
                   You&apos;re offline — your code and notes stay saved.{" "}
-                  <span className="font-bold text-amber-300/80">Run</span> needs an internet
-                  connection to compile remotely.
+                  <span className="font-bold text-amber-300/80">Run</span> works for C++ and
+                  Python right on your device. Java needs an internet connection.
                 </>
               )}
             </p>
