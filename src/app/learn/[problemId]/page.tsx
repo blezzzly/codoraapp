@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { saveNote, getNotes, getQuizAnswers, saveQuizAnswers } from "@/lib/database";
 import { localizeFilename } from "@/lib/languages";
 import { isOfflineCapable, runOffline } from "@/lib/offlineExecutor";
+import { isDesktopApp } from "@/lib/desktop";
+import { canRunLocally, runLocally } from "@/lib/localRunner";
 import type { LanguageId } from "@/lib/languages";
 import { cn } from "@/lib/utils";
 import type { QuizQuestion } from "@/types";
@@ -164,6 +166,21 @@ export default function LearnLessonPage() {
     setExampleError(null);
     try {
       const offline = typeof navigator !== "undefined" && !navigator.onLine;
+      if (isDesktopApp()) {
+        if (!canRunLocally(language)) {
+          setExampleError(
+            "Java is not available in the desktop app unless a JDK is installed on this computer."
+          );
+          return;
+        }
+        const local = await runLocally(lesson.example.code, language, problem.example?.input ?? "");
+        if (!local.success) {
+          setExampleError(local.error || "Could not run the example.");
+          return;
+        }
+        setExampleOutput(local.output === "" ? "(no output)" : local.output);
+        return;
+      }
       if (offline && !isOfflineCapable(language)) {
         setExampleError(
           "Java examples need an internet connection. C++ and Python run offline."

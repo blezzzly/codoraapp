@@ -162,7 +162,8 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">
                   Lessons, progress, and the code editor are saved on this device.
                   C++ and Python compile and run right on your device with no
-                  internet — even from the very first run.
+                  internet — even from the very first run. The desktop app also
+                  runs Java offline using a local JDK.
                 </p>
               </div>
             </div>

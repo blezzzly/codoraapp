@@ -15,6 +15,8 @@ import {
   runOffline,
   type OfflineExecResult,
 } from "@/lib/offlineExecutor";
+import { isDesktopApp } from "@/lib/desktop";
+import { canRunLocally, runLocally } from "@/lib/localRunner";
 import type { TestCase } from "@/types";
 
 export interface RunResult {
@@ -213,7 +215,7 @@ async function checkLocalCode(
   const results: CheckResult["results"] = [];
   for (let i = 0; i < testCases.length; i++) {
     const tc = testCases[i];
-    const res = await runOffline(code, language, tc.input);
+    const res = await runLocally(code, language, tc.input);
     if (res.engine === "unsupported") {
       return { passed: false, compileError: res.error, localRun: true };
     }
@@ -265,6 +267,7 @@ export default function CodeEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const config = getLanguageConfig(language);
+  const desktop = isDesktopApp();
 
   useEffect(() => {
     if (autoFocusInput) inputRef.current?.focus();
@@ -281,6 +284,35 @@ export default function CodeEditor({
     if (running) return;
     if (!code.trim()) {
       show({ title: "Write some code first", variant: "default" });
+      return;
+    }
+    if (isDesktopApp()) {
+      if (!canRunLocally(language)) {
+        show({
+          title: `Can't run ${LANGUAGES[language].label} in the desktop app`,
+          description:
+            "C++ and Python always work. Java needs a JDK installed on this computer.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setRunning(true);
+      setRunResult(null);
+      setAutoFocusInput(false);
+      try {
+        const local = await runLocally(code, language, input);
+        setRunResult(localRunOutcome(local));
+      } catch {
+        setRunResult({
+          output: "",
+          success: false,
+          waitingForInput: false,
+          isError: true,
+          errorDetail: "Something went wrong while running your code.",
+        });
+      } finally {
+        setRunning(false);
+      }
       return;
     }
     if (!online && !isOfflineCapable(language)) {
@@ -336,6 +368,33 @@ export default function CodeEditor({
     if (!testCases || testCases.length === 0) return;
     if (!code.trim()) {
       show({ title: "Write some code first", variant: "default" });
+      return;
+    }
+    if (isDesktopApp()) {
+      if (!canRunLocally(language)) {
+        show({
+          title: `Can't check ${LANGUAGES[language].label} in the desktop app`,
+          description:
+            "C++ and Python always work. Java needs a JDK installed on this computer.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setChecking(true);
+      setCheckResult(null);
+      try {
+        const result = await checkLocalCode(code, language, testCases);
+        setCheckResult(result);
+        onCheckResult?.(result.passed);
+      } catch {
+        setCheckResult({
+          passed: false,
+          compileError: "Something went wrong while checking your code.",
+        });
+        onCheckResult?.(false);
+      } finally {
+        setChecking(false);
+      }
       return;
     }
     if (!online && !isOfflineCapable(language)) {
@@ -512,7 +571,7 @@ export default function CodeEditor({
                   <Icon name="Terminal" size={13} /> Output
                   {(runResult?.localRun || checkResult?.localRun) && (
                     <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[9px] font-bold normal-case tracking-normal text-primary">
-                      ran offline on your device
+                      ran on your device
                     </span>
                   )}
                 </span>
@@ -641,7 +700,12 @@ export default function CodeEditor({
           </div>
           {!(runResult || checkResult) && (
             <p className="mt-2 text-[11px] leading-relaxed text-primary/50">
-              {online ? (
+              {desktop ? (
+                <>
+                  Desktop mode — C++, Python, and Java (with JDK) run directly
+                  on this device, no internet needed.
+                </>
+              ) : online ? (
                 <>
                   Press <span className="font-bold text-primary/80">Run</span> to execute your code —
                   output appears here, and if your program needs input (cin, input(), Scanner…), type

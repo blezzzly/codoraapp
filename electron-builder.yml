@@ -1,0 +1,32 @@
+appId: com.codora.app
+productName: Codora
+copyright: Copyright © 2026 Codora
+icon: public/icons/icon-512x512.png
+directories:
+  output: release
+files:
+  - desktop/**
+  - public/**
+  - .next/**
+  - package.json
+  - node_modules/**/*
+  - "!node_modules/.cache/**"
+  - "!node_modules/.bin/**"
+# Plain folders (no asar): the bundled Next.js server runs as a plain Node
+# process (ELECTRON_RUN_AS_NODE) which cannot read asar archives.
+asar: false
+win:
+  target:
+    - nsis
+mac:
+  target:
+    - dmg
+  category: public.app-category.education
+linux:
+  target:
+    - AppImage
+  category: Education
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: Codora-Setup-${version}.${ext}

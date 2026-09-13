@@ -2,11 +2,13 @@
 
 import React from "react";
 import { useOnline } from "@/hooks/useOnline";
+import { isDesktopApp } from "@/lib/desktop";
 import { Icon } from "@/components/ui/icon";
 
 export function OfflineBanner() {
   const online = useOnline();
 
+  if (isDesktopApp()) return null;
   if (online) return null;
 
   return (
