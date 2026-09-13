@@ -40,6 +40,7 @@ const VENDOR_ASSETS = [
 // Small app-shell files needed for the app itself to load offline.
 const SHELL_ASSETS = [
   ROUTES_MANIFEST,
+  "/offline-manifest.json",
   "/manifest.json",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
@@ -294,7 +295,7 @@ self.addEventListener("fetch", (event) => {
   // Vendored engines: cache-first so offline Run resolves instantly and is
   // never blocked by a slow network.
   if (url.origin === self.location.origin && url.pathname.startsWith("/vendor/")) {
-    if (url.pathname.startsWith(CLANG_PREFIX)) {
+    if (url.pathname.startsWith(CLANG_PREFIX) || url.pathname.endsWith("/clang.worker.js")) {
       event.respondWith(clangFetch(request));
       return;
     }

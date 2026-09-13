@@ -40,14 +40,16 @@ adds `__truncdfhf2`/`__truncsfhf2` etc. so `long double` code links cleanly.
 - The service worker serves `/vendor/clang/*` from Cache Storage; the
   `codora-runtimes-v1` cache is exempt from SW activation purging.
 - The toolchain is **not** force-cached at SW install so first load stays fast.
-  Instead the first C++ run (online) **auto-installs it** — the editor shows a
-  progress toast and runs your code with the full compiler the moment the
-  download finishes (one-time ≈60 MB). It can also be installed/updated/cleared
-  manually in Settings → Offline environment. Until the toolchain is present,
-  C++ falls back to the JSCPP interpreter, clearly labelled, and code using
-  real standard libraries (`<vector>`, `<algorithm>`, …) shows a friendly
-  message explaining that the full compiler downloads automatically on the next
-  online run.
+  On the **very first launch** the app shows an **Offline Setup wizard** where
+  the user picks the languages they want offline and Codora streams the real
+  assets into persistent browser storage (Cache Storage) with byte-accurate
+  progress, SHA-256 verification and per-file resume. It can be skipped and
+  installed later from Settings → Offline environment; a skipped user who runs
+  C++ while online gets an automatic one-time install instead. Until the
+  toolchain is present, C++ falls back to the JSCPP interpreter, clearly
+  labelled, and code using real standard libraries (`<vector>`,
+  `<algorithm>`, …) shows a friendly message explaining how to get the full
+  compiler.
 
 ### JSCPP fallback (light mode)
 `/vendor/jscpp/JSCPP.es5.min.js` (MIT) interprets a small C++ subset offline
@@ -154,3 +156,51 @@ Browser-level offline is exercised by installing the toolchain (Settings →
 Offline environment), enabling airplane mode, and running C++ and Python — the
 service worker serves every asset from Cache Storage (all engine files are
 cacheable GETs; nothing depends on `/api/`).
+
+## 10. First-launch offline setup (this session)
+
+The PWA greets a new user with a **Set up Codora Offline** wizard instead of
+silently starting a download or writing anything to the Downloads folder:
+
+1. The user chooses languages (C++, Python); Java is shown as unavailable
+   offline in a browser (online consent / desktop app only).
+2. Sizes and storage requirements are computed from the real assets by
+   `scripts/generate-offline-manifest.mjs` (build-time) and emitted to
+   `public/offline-manifest.json` **and** `src/lib/offlineRuntime/generated-manifest.ts`
+   (bundled). No hardcoded numbers: C++ ≈ 57.6 MB · Python ≈ 13.0 MB (bundled).
+3. Before downloading, `navigator.storage.estimate()` is used to refuse an
+   install that clearly cannot fit; `navigator.storage.persist()` grants
+   persistent storage so the engines survive browser cleanup.
+4. Files are streamed into the `codora-runtimes-v1` Cache Storage with
+   **per-byte progress** (downloaded/total), live speed and ETA, then each file
+   is **SHA-256-verified against the manifest** before it is stored. The UI only
+   reaches 100% after verification + registration.
+5. Interrupted installs are per-file resumable: completed files are recorded in
+   IndexedDB (`codora-runtime-registry`, the source of truth for installed
+   engines) and skipped on the next run; incomplete files are re-fetched.
+6. A "ready" screen confirms engines and shows total offline storage; Settings
+   gains install/repair/remove/verify/check-updates/persistence controls.
+
+Architecture (`src/lib/offlineRuntime/`):
+`OfflineRuntimeManager` → `RuntimeRegistry` (IndexedDB) + `StorageManager`
+(Cache Storage / `navigator.storage`) + `DownloadManager`
+(`downloadEngineAssets`: stream → verify → store) + per-language engine
+descriptors. `scripts/verify-offline-manager.mjs` runs the pipeline headlessly
+against `public/` over localhost (no internet), asserting: manifest↔disk
+parity, zero network on re-open, per-byte 0→100% progression, SHA-256 integrity
+of stored files, and resume fetching only missing files.
+
+### Final report (spec §24)
+
+```
+Offline Runtime Installation
+─────────────────────────────
+C++:    ✓ installed locally (Clang 8.0.1, WASI) · persistent · offline exec
+Python: ✓ installed locally (Pyodide 0.26.4 / 3.12.1) · persistent · offline exec
+Java:   ✗ browser offline unavailable · ✓ explicit consent for online · ✓ desktop JRE
+Storage:C++ 60.4 MB + Python 13.0 MB (≈70.6 MB total; sizes from real assets)
+Progress:✓ byte-accurate 0–100% · SHA-256 verified · resume kept per file
+PWA restart:  ✓ verified via IndexedDB registry + Cache Storage (tested air-gapped)
+Air-gapped:   ✓ C++ (7 programs) · ✓ Python (6 checks) · ✓ manager (6 cases)
+Silent upload:✓ none — local-first; Java uploads only after explicit consent
+```

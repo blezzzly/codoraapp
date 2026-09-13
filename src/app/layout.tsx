@@ -3,6 +3,7 @@ import { AppProvider } from "@/hooks/useApp";
 import ClientLayout from "@/components/ClientLayout";
 import { PwaRegister } from "@/components/PwaRegister";
 import OnboardingGate from "@/components/OnboardingGate";
+import OfflineSetupGate from "@/components/offline/OfflineSetupGate";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ErrorHandler } from "@/components/ErrorHandler";
@@ -81,6 +82,7 @@ export default function RootLayout({
         <ErrorHandler />
         <PwaRegister />
         <AppProvider>
+          <OfflineSetupGate />
           <OnboardingGate>
             <ClientLayout>{children}</ClientLayout>
           </OnboardingGate>

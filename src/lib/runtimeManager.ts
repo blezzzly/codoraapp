@@ -1,4 +1,13 @@
 import { openDB, type IDBPDatabase } from "idb";
+import { OFFLINE_MANIFEST_VERSION } from "@/lib/offlineRuntime/manifest";
+import {
+  getEngineRecord,
+  getPrefs,
+  getUsedBytes,
+  setEngineRecord,
+  setPref,
+  setUsedBytes,
+} from "@/lib/offlineRuntime/registry";
 
 // Codora offline runtime manager.
 //
@@ -184,6 +193,18 @@ export async function installCppToolchain(
     storageUsedBytes: totalBytes,
   };
   await writeState(state);
+  // Keep the new OfflineRuntimeRegistry in sync (authoritative for the wizard).
+  await setEngineRecord({
+    id: "cpp",
+    manifestVersion: OFFLINE_MANIFEST_VERSION,
+    version: CLANG_VERSION_TEXT,
+    installed: true,
+    filesDone: CLANG_TOOLCHAIN.map((f) => f.url),
+    installedAt: Date.now(),
+  });
+  await setUsedBytes((await getUsedBytes()) + totalBytes);
+  const prefs = await getPrefs();
+  await setPref({ ...prefs, cppEngine: "clang" });
   onProgress?.({ doneBytes: totalBytes, totalBytes, file: "Done", phase: "done" });
   return { ok: true };
 }
@@ -221,10 +242,26 @@ export async function clearCppToolchain(): Promise<void> {
   const runtimes = await caches.open(RUNTIME_CACHE);
   await Promise.all(CLANG_TOOLCHAIN.map((f) => runtimes.delete(f.url).catch(() => {})));
   await writeState({ cppClangInstalled: false, cppEngine: "jscpp", storageUsedBytes: 0 });
+  await setEngineRecord({
+    id: "cpp",
+    manifestVersion: OFFLINE_MANIFEST_VERSION,
+    version: null,
+    installed: false,
+    filesDone: [],
+    installedAt: null,
+  });
+  await setUsedBytes(Math.max(0, (await getUsedBytes()) - CLANG_TOOLCHAIN_BYTES));
+  const prefs = await getPrefs();
+  await setPref({ ...prefs, cppEngine: "jscpp" });
 }
 
 /** Current best C++ engine for the installed PWA. */
 export async function getCppEngine(): Promise<"clang" | "jscpp"> {
+  const regPrefs = await getPrefs();
+  if (regPrefs.cppEngine === "clang") return "clang";
+  // Legacy engines installed before the registry existed.
+  const legacyRecord = await getEngineRecord("cpp");
+  if (legacyRecord?.installed) return "clang";
   const state = await readState();
   if (state.cppEngine === "clang") return "clang";
   const verify = await verifyCppToolchainImpl();

@@ -5,6 +5,7 @@ import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useOnline } from "@/hooks/useOnline";
+import { useRuntimeStatus } from "@/hooks/useRuntimeStatus";
 import { cn } from "@/lib/utils";
 import { LANGUAGES, LanguageId } from "@/lib/languages";
 import { getLanguageConfig } from "@/lib/languages";
@@ -649,6 +650,7 @@ export default function CodeEditor({
             </Button>
           </div>
         </div>
+        <RuntimeStatusChips />
         <div className="p-3">
           <div className="rounded-xl border border-white/10 bg-[#1d1628] p-3">
           {runResult?.waitingForInput && (
@@ -862,6 +864,55 @@ export default function CodeEditor({
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function RuntimeStatusChips() {
+  const online = useOnline();
+  const rt = useRuntimeStatus();
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-white/10 px-3 py-1.5 text-[10px] font-semibold text-white/45">
+      <span className="inline-flex items-center gap-1">
+        <Icon
+          name={online ? "Wifi" : "WifiOff"}
+          size={11}
+          className={online ? "text-emerald-400" : "text-amber-300"}
+        />
+        {online ? "Online" : "Offline"}
+      </span>
+      <span className="inline-flex items-center gap-1">
+        C++
+        {rt.cpp === "installed" ? (
+          <span className="flex items-center gap-0.5 text-emerald-400">
+            <Icon name="Check" size={11} /> local Clang
+          </span>
+        ) : rt.cpp === "partial" ? (
+          <span className="text-sky-300">resume install</span>
+        ) : (
+          <span className="text-amber-300">light mode</span>
+        )}
+      </span>
+      <span className="inline-flex items-center gap-1">
+        Python
+        {rt.python === "installed" ? (
+          <span className="flex items-center gap-0.5 text-emerald-400">
+            <Icon name="Check" size={11} /> local
+          </span>
+        ) : (
+          <span className="text-amber-300">pending</span>
+        )}
+      </span>
+      <span className="inline-flex items-center gap-1">
+        Java
+        <span className="text-white/40">consent only</span>
+      </span>
+      {rt.persisted && (
+        <span className="inline-flex items-center gap-1">
+          <Icon name="Lock" size={11} className="text-primary/70" /> storage persisted
+        </span>
       )}
     </div>
   );
