@@ -264,3 +264,55 @@ export async function runtimeStorageUsage(): Promise<{
 }
 
 export { readState, writeState };
+
+/**
+ * Auto-install used by the editor when a C++ program is run and the Clang
+ * toolchain is not available yet. Only one install runs at a time. Progress is
+ * broadcast as a `codora:cpp-install-progress` CustomEvent on `window`.
+ */
+let installInFlight: Promise<{ ok: boolean; canceled?: boolean; error?: string }> | null =
+  null;
+
+function broadcastProgress(p: InstallProgress): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("codora:cpp-install-progress", { detail: p }));
+}
+
+export function installProgressEventName(): string {
+  return "codora:cpp-install-progress";
+}
+
+export function autoInstallCppToolchain(): Promise<{
+  ok: boolean;
+  canceled?: boolean;
+  error?: string;
+}> {
+  if (installInFlight) return installInFlight;
+  installInFlight = installCppToolchain((p) => broadcastProgress(p))
+    .then((res) => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("codora:cpp-install-progress", {
+            detail: {
+              doneBytes: res.ok ? CLANG_TOOLCHAIN_BYTES : 0,
+              totalBytes: CLANG_TOOLCHAIN_BYTES,
+              file: res.ok ? "Done" : "Failed",
+              phase: "done",
+              ok: res.ok,
+              error: res.error,
+            } as InstallProgress & { ok?: boolean; error?: string },
+          })
+        );
+      }
+      return res;
+    })
+    .finally(() => {
+      installInFlight = null;
+    });
+  return installInFlight;
+}
+
+/** True when we can attempt a first C++ run with the whole toolchain. */
+export function canAutoInstallCpp(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine;
+}

@@ -19,6 +19,7 @@ import { isDesktopApp } from "@/lib/desktop";
 import { canRunLocally, runLocally } from "@/lib/localRunner";
 import { friendlyError } from "@/lib/beginnerErrors";
 import { javaOfflineNote, currentBackend } from "@/lib/executionBackend";
+import { installProgressEventName } from "@/lib/runtimeManager";
 import type { TestCase } from "@/types";
 
 const JAVA_CLOUD_CONSENT_KEY = "codora-java-cloud-consent";
@@ -302,6 +303,38 @@ export default function CodeEditor({
   const [autoFocusInput, setAutoFocusInput] = useState(false);
   const [focused, setFocused] = useState(false);
   const [javaConsentPending, setJavaConsentPending] = useState(false);
+  const installingCppRef = useRef(false);
+
+  // Surface the automatic C++ compiler download (first online C++ run).
+  useEffect(() => {
+    const evName = installProgressEventName();
+    const onProg = (event: Event) => {
+      const d = (event as CustomEvent).detail as
+        | { phase: string; ok?: boolean; error?: string }
+        | undefined;
+      if (!d) return;
+      if (d.phase === "downloading" && !installingCppRef.current) {
+        installingCppRef.current = true;
+        show({
+          title: "Installing the full offline C++ compiler…",
+          description: "One-time download (≈60 MB). Your code will run automatically when it's ready.",
+        });
+      } else if (d.phase === "done" && installingCppRef.current) {
+        installingCppRef.current = false;
+        show({
+          title: d.ok
+            ? "C++ compiler ready — running your code"
+            : "Offline C++ compiler not ready yet",
+          description: d.ok
+            ? "From now on every C++ program compiles with the real Clang compiler."
+            : d.error ?? "Check your connection and press Run again.",
+          variant: d.ok ? "success" : "destructive",
+        });
+      }
+    };
+    window.addEventListener(evName, onProg);
+    return () => window.removeEventListener(evName, onProg);
+  }, [show]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const config = getLanguageConfig(language);

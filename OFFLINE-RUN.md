@@ -39,10 +39,15 @@ adds `__truncdfhf2`/`__truncsfhf2` etc. so `long double` code links cleanly.
 - Every engine file is vendored in `public/vendor/clang/` (git repo, ~60 MB).
 - The service worker serves `/vendor/clang/*` from Cache Storage; the
   `codora-runtimes-v1` cache is exempt from SW activation purging.
-- The toolchain is **not** force-cached at install. The user explicitly
-  downloads it once (Settings → Offline environment) with a byte-progress bar;
-  after that it works in airplane mode. Until then C++ falls back to the JSCPP
-  interpreter, clearly labelled in the console and Settings.
+- The toolchain is **not** force-cached at SW install so first load stays fast.
+  Instead the first C++ run (online) **auto-installs it** — the editor shows a
+  progress toast and runs your code with the full compiler the moment the
+  download finishes (one-time ≈60 MB). It can also be installed/updated/cleared
+  manually in Settings → Offline environment. Until the toolchain is present,
+  C++ falls back to the JSCPP interpreter, clearly labelled, and code using
+  real standard libraries (`<vector>`, `<algorithm>`, …) shows a friendly
+  message explaining that the full compiler downloads automatically on the next
+  online run.
 
 ### JSCPP fallback (light mode)
 `/vendor/jscpp/JSCPP.es5.min.js` (MIT) interprets a small C++ subset offline

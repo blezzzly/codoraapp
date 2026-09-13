@@ -129,7 +129,7 @@ export default function OfflineEnvironmentCard() {
                 </p>
               ) : (
                 <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
-                  <Icon name="Info" size={12} /> Light mode
+                  <Icon name="Download" size={12} /> Auto-installs on first C++ run
                 </p>
               )}
             </div>

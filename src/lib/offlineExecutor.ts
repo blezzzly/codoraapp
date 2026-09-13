@@ -1,5 +1,5 @@
 import type { LanguageId } from "@/lib/languages";
-import { getCppEngine } from "@/lib/runtimeManager";
+import { autoInstallCppToolchain, canAutoInstallCpp, getCppEngine } from "@/lib/runtimeManager";
 
 export type OfflineEngine =
   | "local"
@@ -25,6 +25,33 @@ let cppEngineCache: "clang" | "jscpp" | null = null;
 /** Tell the executor which on-device C++ engine to prefer. */
 export function setCppEngine(engine: "clang" | "jscpp" | null): void {
   cppEngineCache = engine;
+}
+
+/**
+ * Resolve the best C++ engine, auto-installing the full Clang toolchain the
+ * first time a C++ program is run while online. Never reports an error that
+ * says "library not found" when the fix is a one-time download we can do now.
+ */
+export async function ensureCppEngine(): Promise<"clang" | "jscpp"> {
+  if (cppEngineCache === "clang") return "clang";
+
+  if (cppEngineCache === null) {
+    try {
+      cppEngineCache = await getCppEngine();
+    } catch {
+      cppEngineCache = "jscpp";
+    }
+  }
+
+  if (cppEngineCache === "jscpp" && canAutoInstallCpp()) {
+    const res = await autoInstallCppToolchain();
+    if (res.ok) {
+      cppEngineCache = "clang";
+      return "clang";
+    }
+  }
+
+  return cppEngineCache ?? "jscpp";
 }
 
 export function isOfflineCapable(language: string): boolean {
@@ -177,13 +204,10 @@ export async function runOffline(
   language: LanguageId | string,
   input?: string
 ): Promise<OfflineExecResult> {
-  // C++ engine depends on whether the Clang toolchain was installed.
-  if (language === "cpp" && cppEngineCache === null) {
-    try {
-      cppEngineCache = await getCppEngine();
-    } catch {
-      cppEngineCache = "jscpp";
-    }
+  // C++ engine depends on whether the Clang toolchain was installed. Prefer
+  // the real compiler; auto-install it on first use while online.
+  if (language === "cpp") {
+    await ensureCppEngine();
   }
 
   const url = getOfflineWorkerUrl(language);

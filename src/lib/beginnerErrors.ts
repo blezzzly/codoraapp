@@ -161,6 +161,16 @@ function friendlyJava(s: string, line?: number): string {
 function friendlyCpp(s: string, line?: number): string {
   const at = line ? `around line ${line}` : "";
 
+  if (/cannot find library|file not found|no such file or directory/i.test(s)) {
+    const lib = s.match(/['"](.+?)['"]/)?.[1];
+    return (
+      `Your code uses a library${lib ? ` (<${lib}>)` : ""} that needs the full C++ compiler.` +
+      `\n\nLight mode only runs tiny programs without real standard libraries.` +
+      `\n\nPress Run again while online — Codora will download the offline Clang compiler` +
+      ` (≈60 MB, one-time) and run your code with the real standard library` +
+      ` (vector, algorithm, iostream, map, string, sort…).`
+    );
+  }
   if (/was not declared in this scope/i.test(s)) {
     const n = s.match(/['"](.+?)['"] was not declared/)?.[1];
     return (
