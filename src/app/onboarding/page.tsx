@@ -277,7 +277,7 @@ export default function OnboardingPage() {
             </span>
             <div>
               <h2 className="text-xl font-bold text-foreground">
-                You're all set
+                You&apos;re all set
               </h2>
               <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
                 You chose{" "}

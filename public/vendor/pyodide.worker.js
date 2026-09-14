@@ -15,7 +15,7 @@
 const PYODIDE_URL = "/vendor/pyodide/pyodide.js";
 const PYODIDE_INDEX = "/vendor/pyodide/";
 
-const MAX_RUN_MS = 8000;
+const MAX_RUN_MS = 60000;
 
 let pyodidePromise = null;
 

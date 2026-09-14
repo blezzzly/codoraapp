@@ -4,7 +4,47 @@ const CACHE_NAME = "codora-workspace-v10";
 // Downloaded once by the runtime manager with progress, then served offline.
 // Never precached, never purged, never auto-cached on first fetch.
 const RUNTIME_CACHE = "codora-runtimes-v1";
-const CLANG_PREFIX = "/vendor/clang/";
+
+// Paths the runtime manager can cache. Served from the runtime cache first so
+// a large toolchain resolves instantly and works offline.
+const RUNTIME_HOSTED_PREFIXES = ["/vendor/clang/", "/vendor/teavm/", "/vendor/pyodide/"];
+
+function isRuntimeHosted(url) {
+  if (url.endsWith("/clang.worker.js") || url.endsWith("/pyodide.worker.js") || url.endsWith("/java.worker.js")) {
+    return true;
+  }
+  return RUNTIME_HOSTED_PREFIXES.some((prefix) => url.startsWith(prefix));
+}
+
+function responseTypeForUrl(url) {
+  if (url.endsWith(".js")) return "text/javascript; charset=utf-8";
+  if (url.endsWith(".wasm")) return "application/wasm";
+  if (url.endsWith(".json")) return "application/json";
+  return null;
+}
+
+/**
+ * Browsers refuse to load worker/importScripts files (and some wasm) unless the
+ * response uses the right MIME type. Older installs stored everything as
+ * application/octet-stream, which silently broke the engines. Rewrite the
+ * header of any cached asset whose type we can derive from its URL.
+ */
+function withCorrectContentType(response, url) {
+  if (!response || !response.body) return response;
+  const type = responseTypeForUrl(url);
+  if (!type) return response;
+  const headers = new Headers(response.headers);
+  const existing = headers.get("content-type") || "";
+  const existingBase = (existing.split(";")[0] || "").trim().toLowerCase();
+  const typeBase = type.split(";")[0].trim().toLowerCase();
+  if (existingBase === typeBase) return response;
+  headers.set("Content-Type", type);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
 
 // Fallback tab list when public/codora-routes.json cannot be read.
 const DEFAULT_TABS = [
@@ -198,10 +238,12 @@ function isRscRequest(request) {
   );
 }
 
-async function clangFetch(request) {
-  const runtimes = await caches.open(RUNTIME_CACHE);
-  const hit = await runtimes.match(request);
-  if (hit) return hit;
+async function runtimeFetch(request) {
+  for (const cacheName of [RUNTIME_CACHE, CACHE_NAME]) {
+    const cache = await caches.open(cacheName);
+    const hit = await cache.match(request);
+    if (hit) return withCorrectContentType(hit, request.url);
+  }
   try {
     const response = await fetchWithTimeout(request);
     const ok = response && (response.status === 200 || response.status === 0);
@@ -295,8 +337,8 @@ self.addEventListener("fetch", (event) => {
   // Vendored engines: cache-first so offline Run resolves instantly and is
   // never blocked by a slow network.
   if (url.origin === self.location.origin && url.pathname.startsWith("/vendor/")) {
-    if (url.pathname.startsWith(CLANG_PREFIX) || url.pathname.endsWith("/clang.worker.js")) {
-      event.respondWith(clangFetch(request));
+    if (isRuntimeHosted(url.pathname)) {
+      event.respondWith(runtimeFetch(request));
       return;
     }
     event.respondWith(cacheFirst(request));

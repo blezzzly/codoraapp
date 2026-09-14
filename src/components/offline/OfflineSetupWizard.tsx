@@ -46,7 +46,10 @@ function ProgressBar({ value, className }: { value: number; className?: string }
   );
 }
 
-const CHECKABLE: EngineId[] = ["cpp", "java"];
+// Only C++ is downloadable here: Python ships with the app, and Java is not
+// offered offline (no browser JVM — Java runs via the local JDK in the
+// desktop app or the consented online judge).
+const CHECKABLE: EngineId[] = ["cpp"];
 
 export default function OfflineSetupWizard({ onClose }: OfflineSetupWizardProps) {
   const [phase, setPhase] = useState<WizardPhase>("checking");
@@ -253,17 +256,6 @@ export default function OfflineSetupWizard({ onClose }: OfflineSetupWizardProps)
               onToggle={() => {}}
               installed
               badge="Included with the app"
-            />
-            <LanguageRow
-              icon="FileCode"
-              title="Java"
-              subtitle="TeaVM · OpenJDK javac → WASM · Java 17"
-              size={getEngine("java").totalBytes}
-              checked={selected.java}
-              disabled={!CHECKABLE.includes("java")}
-              onToggle={() => toggle("java")}
-              installed={states?.java?.installed}
-              badge={states?.java?.installed ? "Installed" : undefined}
             />
           </div>
         )}

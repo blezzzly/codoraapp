@@ -42,10 +42,13 @@ const ENGINES = {
     ],
   },
   java: {
+    // Java cannot run offline in a web browser (no JVM in the sandbox). The
+    // editor only offers Java through the explicitly-consented online judge or
+    // the desktop app's local JDK, so this engine is NOT offered for download.
     label: "Java · TeaVM",
     version: "TeaVM 0.8.0 · OpenJDK javac + WASM runtime",
     bundledWithApp: false,
-    installable: true,
+    installable: false,
     assets: [
       "/vendor/teavm/compile-classlib-teavm.bin",
       "/vendor/teavm/compiler.wasm",
@@ -73,7 +76,7 @@ function assetInfo(url) {
 }
 
 const manifest = {
-  version: 1,
+  version: 2,
   generatedAt: new Date().toISOString(),
   engines: Object.fromEntries(
     Object.entries(ENGINES).map(([id, def]) => {

@@ -57,6 +57,8 @@ export interface CheckResult {
   compileError?: string;
   explanation?: RunResult["explanation"];
   localRun?: boolean;
+  /** True when the on-device engine itself could not start (not a code error). */
+  startupFailure?: boolean;
   results?: { index: number; passed: boolean; expectedOutput: string; actualOutput: string }[];
 }
 
@@ -151,16 +153,23 @@ async function runRemoteCode(
 }
 
 function localRunOutcome(res: OfflineExecResult, language: LanguageId): RunResult {
-  const engineLabel =
-    res.engine === "pyodide"
+  const engineLabel = res.success
+    ? res.engine === "pyodide"
       ? "Python runtime (Pyodide) — ran on this device"
       : res.engine === "clang-wasm"
         ? "Clang WASM compiler — compiled and ran on this device"
         : res.engine === "jscpp"
-          ? "Light in-browser interpreter — install the full C++ compiler in Settings"
+          ? "Light in-browser interpreter — ran on this device"
           : res.engine === "local"
             ? "Ran on this device"
-            : undefined;
+            : undefined
+    : res.engine === "pyodide"
+      ? "Python runtime (Pyodide) — on this device"
+      : res.engine === "clang-wasm"
+        ? "Clang WASM compiler — on this device"
+        : res.engine === "jscpp"
+          ? "Light in-browser interpreter — on this device"
+          : undefined;
   if (res.success) {
     return {
       output: res.output,
@@ -248,6 +257,7 @@ async function checkLocalCode(
   testCases: TestCase[]
 ): Promise<CheckResult> {
   const results: CheckResult["results"] = [];
+  let startupFailure = false;
   for (let i = 0; i < testCases.length; i++) {
     const tc = testCases[i];
     const res = await runLocally(code, language, tc.input);
@@ -258,6 +268,7 @@ async function checkLocalCode(
         localRun: true,
       };
     }
+    if (res.startupFailure) startupFailure = true;
     const actual = normalizeOutputOffline(res.output);
     const expected = normalizeOutputOffline(tc.expectedOutput);
     results.push({
@@ -271,6 +282,7 @@ async function checkLocalCode(
     passed: results.length > 0 && results.every((r) => r.passed),
     results,
     localRun: true,
+    startupFailure: startupFailure || undefined,
   };
 }
 
@@ -304,6 +316,7 @@ export default function CodeEditor({
   const [autoFocusInput, setAutoFocusInput] = useState(false);
   const [focused, setFocused] = useState(false);
   const [javaConsentPending, setJavaConsentPending] = useState(false);
+  const [javaConsentAction, setJavaConsentAction] = useState<"run" | "check">("run");
   const installingCppRef = useRef(false);
 
   // Surface the automatic C++ compiler download (first online C++ run).
@@ -397,6 +410,7 @@ export default function CodeEditor({
         return;
       }
       if (!javaCloudConsentGiven()) {
+        setJavaConsentAction("run");
         setJavaConsentPending(true);
         return;
       }
@@ -417,10 +431,16 @@ export default function CodeEditor({
       // Local-first: whenever code can run on this device, it does — even
       // while online. The remote judge is only a fallback or the
       // explicitly-consented Java path.
+      let bestLocal: OfflineExecResult | null = null;
       if (isOfflineCapable(language)) {
-        const local = await runLocally(code, language, input);
-        if (local.engine !== "unsupported") {
-          setRunResult(localRunOutcome(local, language));
+        bestLocal = await runLocally(code, language, input);
+        // Use the on-device result unless the engine itself could not start
+        // (not a code error) and the online judge is available as a fallback.
+        if (
+          bestLocal.engine !== "unsupported" &&
+          !(online && bestLocal.startupFailure)
+        ) {
+          setRunResult(localRunOutcome(bestLocal, language));
           return;
         }
       }
@@ -434,6 +454,10 @@ export default function CodeEditor({
             description: "Type your input at the $ prompt below, then press Run.",
           });
         }
+      } else if (bestLocal && bestLocal.engine !== "unsupported") {
+        // Offline and the on-device engine failed: reuse its result instead of
+        // re-running the same broken worker.
+        setRunResult(localRunOutcome(bestLocal, language));
       } else {
         const local = await runOffline(code, language, input);
         setRunResult(localRunOutcome(local, language));
@@ -495,21 +519,35 @@ export default function CodeEditor({
       });
       return;
     }
+    if (language === "java" && online && !javaCloudConsentGiven()) {
+      setJavaConsentAction("check");
+      setJavaConsentPending(true);
+      return;
+    }
     setChecking(true);
     setCheckResult(null);
     try {
-      // Local-first, same as Run: offline-capable languages are always checked
-      // on-device; the online judge is only a fallback.
+      // Local-first, same as Run: offline-capable languages are usually checked
+      // on-device; the online judge is only a fallback (e.g. when the
+      // on-device engine itself could not start while online).
+      let bestLocal: CheckResult | null = null;
       if (isOfflineCapable(language)) {
-        const result = await checkLocalCode(code, language, testCases);
-        setCheckResult(result);
-        onCheckResult?.(result.passed);
-        return;
+        bestLocal = await checkLocalCode(code, language, testCases);
+        if (!(online && bestLocal.startupFailure)) {
+          setCheckResult(bestLocal);
+          onCheckResult?.(bestLocal.passed);
+          return;
+        }
       }
       if (online) {
         const result = await checkRemoteCode(code, language, testCases);
         setCheckResult(result);
         onCheckResult?.(result.passed);
+      } else if (bestLocal) {
+        // Offline and the on-device engine failed: reuse its result instead of
+        // re-running the same broken worker.
+        setCheckResult(bestLocal);
+        onCheckResult?.(bestLocal.passed);
       } else {
         const result = await checkLocalCode(code, language, testCases);
         setCheckResult(result);
@@ -856,7 +894,11 @@ export default function CodeEditor({
                 onClick={() => {
                   grantJavaCloudConsent();
                   setJavaConsentPending(false);
-                  handleRun();
+                  if (javaConsentAction === "check") {
+                    handleCheck();
+                  } else {
+                    handleRun();
+                  }
                 }}
               >
                 Use Online Compiler

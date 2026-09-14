@@ -13,6 +13,21 @@ export interface RuntimeStorage {
   delete(url: string): Promise<void>;
 }
 
+/**
+ * Pick a MIME type that browsers actually require for the asset.
+ *
+ * The runtime cache serves these files straight to Worker/importScripts and
+ * WebAssembly compilation, and browsers strictly enforce that script files have
+ * a JavaScript MIME type (application/octet-stream makes worker scripts refuse
+ * to load — "the offline code engine could not start").
+ */
+export function contentTypeForUrl(url: string): string {
+  if (url.endsWith(".js")) return "text/javascript; charset=utf-8";
+  if (url.endsWith(".wasm")) return "application/wasm";
+  if (url.endsWith(".json")) return "application/json";
+  return "application/octet-stream";
+}
+
 export class BrowserRuntimeStorage implements RuntimeStorage {
   async open(): Promise<Cache> {
     return caches.open(RUNTIME_CACHE);
@@ -20,7 +35,10 @@ export class BrowserRuntimeStorage implements RuntimeStorage {
 
   async put(url: string, blob: Blob): Promise<void> {
     const cache = await this.open();
-    await cache.put(url, new Response(blob, { headers: { "Content-Type": "application/octet-stream" } }));
+    await cache.put(
+      url,
+      new Response(blob, { headers: { "Content-Type": contentTypeForUrl(url) } })
+    );
   }
 
   async match(url: string): Promise<Blob | null> {

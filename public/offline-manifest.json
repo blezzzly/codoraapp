@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "generatedAt": "2026-09-13T11:06:36.609Z",
+  "version": 2,
+  "generatedAt": "2026-09-14T03:38:15.862Z",
   "engines": {
     "cpp": {
       "label": "C++ · Clang WASM",
@@ -35,8 +35,8 @@
         },
         {
           "url": "/vendor/clang/runner.js",
-          "size": 4991,
-          "sha256": "054f8731c66c01515f2cba165bb8f269dcbf72d9df664605ca639151aa546f02"
+          "size": 4984,
+          "sha256": "396a84ff4cfd096ca38cd91d20fbd43e125efe494650e8bab4c111a353d48afa"
         },
         {
           "url": "/vendor/clang/libgcc-shim.o",
@@ -45,11 +45,11 @@
         },
         {
           "url": "/vendor/clang.worker.js",
-          "size": 2475,
-          "sha256": "2708e8b31a783b12dd557a46ff5ae06ec315b4b792d443e14d8ec7ff5b97ec30"
+          "size": 2508,
+          "sha256": "e674a93fc6a3e56aa7f2d564bcbda93584182aa3261ddb6b8f84d34e803587c9"
         }
       ],
-      "totalBytes": 60380751
+      "totalBytes": 60380777
     },
     "python": {
       "label": "Python · Pyodide",
@@ -79,17 +79,17 @@
         },
         {
           "url": "/vendor/pyodide.worker.js",
-          "size": 2740,
-          "sha256": "50d683f9e85e971624441487d320a9d5243aed35fed31ebd580d3eb2cf959622"
+          "size": 2741,
+          "sha256": "57863d4d0ddae44a063f3a6e52d3125c43972b655077cc98a609ea956e5bd49b"
         }
       ],
-      "totalBytes": 13676523
+      "totalBytes": 13676524
     },
     "java": {
       "label": "Java · TeaVM",
       "version": "TeaVM 0.8.0 · OpenJDK javac + WASM runtime",
       "bundledWithApp": false,
-      "installable": true,
+      "installable": false,
       "assets": [
         {
           "url": "/vendor/teavm/compile-classlib-teavm.bin",

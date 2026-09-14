@@ -56,7 +56,7 @@
       const self = this;
       this.sysrootBuffer = null;
 
-      this.api = new global.API({
+      this.api = new API({
         readBuffer: async function (name) {
           if (name === "sysroot.tar") {
             if (!self.sysrootBuffer) {

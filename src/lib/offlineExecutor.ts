@@ -14,6 +14,12 @@ export interface OfflineExecResult {
   success: boolean;
   error?: string;
   engine: OfflineEngine;
+  /**
+   * True only when the engine's own startup failed (worker could not be
+   * constructed / its scripts did not load). Lets callers fall back to another
+   * engine instead of showing a dead-end error.
+   */
+  startupFailure?: boolean;
 }
 
 const CPP_JSCPP_WORKER_URL = "/vendor/jscpp/JSCPP.es5.min.js";
@@ -23,6 +29,10 @@ const JAVA_WORKER_URL = "/vendor/teavm/java.worker.js";
 
 // Last known C++ engine (set by the runtime manager; refreshed lazily here).
 let cppEngineCache: "clang" | "jscpp" | null = null;
+// The one-time just-in-time toolchain download is attempted at most once per
+// page session so a full disk / flaky network can never trigger a ~60MB
+// retry on every Run press. Manual installs from Settings still always work.
+let autoInstallAttempted = false;
 
 /** Tell the executor which on-device C++ engine to prefer. */
 export function setCppEngine(engine: "clang" | "jscpp" | null): void {
@@ -45,7 +55,8 @@ export async function ensureCppEngine(): Promise<"clang" | "jscpp"> {
     }
   }
 
-  if (cppEngineCache === "jscpp" && canAutoInstallCpp()) {
+  if (cppEngineCache === "jscpp" && !autoInstallAttempted && canAutoInstallCpp()) {
+    autoInstallAttempted = true;
     const res = await autoInstallCppToolchain();
     if (res.ok) {
       cppEngineCache = "clang";
@@ -57,7 +68,11 @@ export async function ensureCppEngine(): Promise<"clang" | "jscpp"> {
 }
 
 export function isOfflineCapable(language: string): boolean {
-  return language === "cpp" || language === "python" || language === "java";
+  // C++ runs on-device (Clang-WASM, falling back to JSCPP). Python runs
+  // on-device (bundled Pyodide). Java is NOT offline-capable in the browser:
+  // there is no browser-local JVM, so Java runs through the explicitly
+  // consented online judge (or the desktop app's local JDK).
+  return language === "cpp" || language === "python";
 }
 
 function cppWorkerUrl(): string {
@@ -139,11 +154,11 @@ function runInWorker(
       }
     };
 
-    const fail = (error: string, isTimeout = false) => {
+    const fail = (error: string, isTimeout = false, startupFailure = false) => {
       if (settled) return;
       timedOut = isTimeout;
       cleanup();
-      resolve({ output, success: false, error, engine: "local" });
+      resolve({ output, success: false, error, engine: "local", startupFailure });
     };
 
     const finish = (result: OfflineExecResult) => {
@@ -158,7 +173,9 @@ function runInWorker(
 
     const handlePending = () => {
       fail(
-        "The offline code engine could not start. Please reload the page and try again."
+        "The offline code engine could not start. Please reload the page and try again.",
+        false,
+        true
       );
     };
 
@@ -200,6 +217,15 @@ function engineForUrl(url: string): OfflineEngine {
   return "jscpp";
 }
 
+/** True when a Clang-WASM failure is the engine's, not the user's code. */
+function isClangStartFailure(result: OfflineExecResult): boolean {
+  if (result.startupFailure) return true;
+  const m = `${result.error ?? ""}\n${result.output ?? ""}`;
+  return /could not start|failed to load|failed to fetch|SecurityError|Maximum call stack size exceeded/i.test(
+    m
+  );
+}
+
 /**
  * Execute source code entirely in the browser. Used when offline (or when the
  * remote judge is unreachable) for languages that have a local runtime.
@@ -215,7 +241,7 @@ export async function runOffline(
     await ensureCppEngine();
   }
 
-  const url = getOfflineWorkerUrl(language);
+  let url = getOfflineWorkerUrl(language);
   if (!url) {
     return {
       output: "",
@@ -225,38 +251,80 @@ export async function runOffline(
     };
   }
 
-  const engine = engineForUrl(url);
-  try {
-    const worker = getWorker(url);
-    const timeout =
-      language === "python"
-        ? PYTHON_TIMEOUT_MS
-        : language === "java"
-          ? JAVA_TIMEOUT_MS
-          : engine === "clang-wasm"
-            ? CPP_CLANG_TIMEOUT_MS
-            : JSCPP_TIMEOUT_MS;
-    const result = await runInWorker(worker, code, input ?? "", timeout);
-    // JSCPP is stricter than g++ about `return 0;`. g++ only warns and still
-    // exits 0, so a missing return is not a real failure when we got output.
-    if (
-      engine === "jscpp" &&
-      language === "cpp" &&
-      !result.success &&
-      result.output.trim() !== "" &&
-      /you must return a value/i.test(result.error ?? "")
-    ) {
-      return { output: result.output, success: true, engine: "jscpp" };
+  // C++ has a real fallback engine: if the Clang-WASM worker cannot start (a
+  // broken/stale toolchain, wrong MIME from an old cache, full disk, …) we
+  // automatically switch to the light JSCPP interpreter so Run never dead-ends
+  // with "the offline code engine could not start".
+  let attempts = 0;
+  while (url) {
+    const engine = engineForUrl(url);
+    try {
+      const worker = getWorker(url);
+      const timeout =
+        language === "python"
+          ? PYTHON_TIMEOUT_MS
+          : language === "java"
+            ? JAVA_TIMEOUT_MS
+            : engine === "clang-wasm"
+              ? CPP_CLANG_TIMEOUT_MS
+              : JSCPP_TIMEOUT_MS;
+      const result = await runInWorker(worker, code, input ?? "", timeout);
+
+      if (
+        language === "cpp" &&
+        engine === "clang-wasm" &&
+        attempts === 0 &&
+        !result.success &&
+        isClangStartFailure(result)
+      ) {
+        // The full compiler could not start. Downgrade for the rest of this
+        // session and retry once with the always-available interpreter. The
+        // pref/state are repaired on the next engine resolve (getCppEngine
+        // verifies the toolchain before trusting it).
+        cppEngineCache = "jscpp";
+        url = cppWorkerUrl();
+        attempts++;
+        continue;
+      }
+
+      // JSCPP is stricter than g++ about `return 0;`. g++ only warns and still
+      // exits 0, so a missing return is not a real failure when we got output.
+      if (
+        engine === "jscpp" &&
+        language === "cpp" &&
+        !result.success &&
+        result.output.trim() !== "" &&
+        /you must return a value/i.test(result.error ?? "")
+      ) {
+        return { output: result.output, success: true, engine: "jscpp" };
+      }
+      return { ...result, engine };
+    } catch (err) {
+      if (
+        language === "cpp" &&
+        engine === "clang-wasm" &&
+        attempts === 0
+      ) {
+        // new Worker() can throw synchronously (bad script MIME, blocked load).
+        cppEngineCache = "jscpp";
+        url = cppWorkerUrl();
+        attempts++;
+        continue;
+      }
+      return {
+        output: "",
+        success: false,
+        error: String((err as Error)?.message ?? err),
+        engine,
+      };
     }
-    return { ...result, engine };
-  } catch (err) {
-    return {
-      output: "",
-      success: false,
-      error: String((err as Error)?.message ?? err),
-      engine,
-    };
   }
+  return {
+    output: "",
+    success: false,
+    error: `${language} execution failed to start.`,
+    engine: "local",
+  };
 }
 
 /** Mirrors the server-side normalizeOutput so offline checks match exactly. */

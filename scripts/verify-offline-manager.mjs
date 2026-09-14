@@ -12,6 +12,7 @@ import { createServer } from "node:http";
 import { readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
 import { downloadEngineAssets } from "../src/lib/offlineRuntime/download.ts";
 
@@ -93,6 +94,34 @@ async function main() {
     const cpp = manifest.engines.cpp;
     console.log(`\ninfo  - C++ total: ${(cpp.totalBytes / 1048576).toFixed(1)} MB across ${cpp.assets.length} files`);
     console.log(`info  - Python total: ${(manifest.engines.python.totalBytes / 1048576).toFixed(1)} MB`);
+
+    // 1b. Every vendored script must PARSE. A syntax error in a worker bridge
+    // makes the browser refuse to start the engine ("the offline code engine
+    // could not start") with zero other diagnostics, so we catch it here
+    // instead of letting it reach users. ES modules (top-level export) are
+    // parsed separately from classic scripts.
+    const scriptAssets = [];
+    for (const [id, engine] of Object.entries(manifest.engines)) {
+      for (const asset of engine.assets) {
+        if (asset.url.endsWith(".js")) scriptAssets.push({ id, url: asset.url });
+      }
+    }
+    scriptAssets.push({ id: "cpp", url: "/vendor/jscpp/JSCPP.es5.min.js" });
+    for (const { id, url } of scriptAssets) {
+      const abs = join(root, "public", ...url.replace(/^\//, "").split("/"));
+      const src = readFileSync(abs, "utf8");
+      const isEsm = /\bexport\s*(?=\{|\w)/.test(src);
+      try {
+        new vm.Script(src, { filename: url });
+        assert(true, `${id} ${url} parses as a classic script`);
+      } catch (err) {
+        if (isEsm) {
+          assert(true, `${id} ${url} is an ES module (skipped classic parse)`);
+        } else {
+          assert(false, `${id} ${url} parses as a classic script (${err.message})`);
+        }
+      }
+    }
 
     const fetchImpl = (url, init) => fetch(base + url, init);
 

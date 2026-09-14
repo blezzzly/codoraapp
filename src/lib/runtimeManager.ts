@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from "idb";
 import { OFFLINE_MANIFEST_VERSION } from "@/lib/offlineRuntime/manifest";
+import { contentTypeForUrl } from "@/lib/offlineRuntime/storage";
 import {
   getEngineRecord,
   getPrefs,
@@ -58,7 +59,7 @@ export const CLANG_TOOLCHAIN: EngineFile[] = [
   { url: "/vendor/clang/libgcc-shim.o", size: 1384, label: "long-double support shim" },
   { url: "/vendor/clang/shared.js", size: 23973, label: "toolchain driver" },
   { url: "/vendor/clang/runner.js", size: 4991, label: "compiler runner" },
-  { url: "/vendor/clang.worker.js", size: 2475, label: "worker bridge" },
+  { url: "/vendor/clang.worker.js", size: 2508, label: "worker bridge" },
 ];
 
 export const CLANG_TOOLCHAIN_BYTES = CLANG_TOOLCHAIN.reduce((n, f) => n + f.size, 0);
@@ -192,7 +193,7 @@ export async function installCppToolchain(
       await runtimes.put(
         file.url,
         new Response(new Blob(chunks as unknown as BlobPart[]), {
-          headers: { "Content-Type": "application/octet-stream" },
+          headers: { "Content-Type": contentTypeForUrl(file.url) },
         })
       );
     } catch (err) {
@@ -334,7 +335,7 @@ export async function installJavaTeavmToolchain(
       await runtimes.put(
         file.url,
         new Response(new Blob(chunks as unknown as BlobPart[]), {
-          headers: { "Content-Type": "application/octet-stream" },
+          headers: { "Content-Type": contentTypeForUrl(file.url) },
         })
       );
     } catch (err) {
@@ -413,14 +414,57 @@ export async function clearJavaTeavmToolchain(): Promise<void> {
 /** Current best C++ engine for the installed PWA. */
 export async function getCppEngine(): Promise<"clang" | "jscpp"> {
   const regPrefs = await getPrefs();
-  if (regPrefs.cppEngine === "clang") return "clang";
-  // Legacy engines installed before the registry existed.
-  const legacyRecord = await getEngineRecord("cpp");
-  if (legacyRecord?.installed) return "clang";
-  const state = await readState();
-  if (state.cppEngine === "clang") return "clang";
+  // The cache is the real source of truth: a pref/record that says "clang"
+  // means nothing if the toolchain files aren't actually stored (evicted,
+  // partial install, storage cleared, stale pref). Trust it only after the
+  // files are verified present.
   const verify = await verifyCppToolchainImpl();
-  return verify.installed ? "clang" : "jscpp";
+  const cacheReady = verify.installed;
+
+  if (regPrefs.cppEngine === "clang") {
+    if (cacheReady) return "clang";
+    await downgradeCppEngine();
+    return "jscpp";
+  }
+
+  // Legacy engines installed before the registry existed.
+  const legacyRecord = await getEngineRecord("cpp").catch(() => undefined);
+  if (legacyRecord?.installed) {
+    if (cacheReady) return "clang";
+    await downgradeCppEngine();
+    return "jscpp";
+  }
+
+  const state = await readState().catch(() => null);
+  if (state?.cppEngine === "clang") {
+    if (cacheReady) return "clang";
+    await downgradeCppEngine();
+    return "jscpp";
+  }
+
+  return cacheReady ? "clang" : "jscpp";
+}
+
+/**
+ * The compiled toolchain is registered as installed but its files are missing
+ * from the cache. Repair the registry so engine selection stops aiming at a
+ * compiler that can never start (Settings can then offer a fresh/partial
+ * install). Never throws.
+ */
+async function downgradeCppEngine(): Promise<void> {
+  try {
+    await setPref({ cppEngine: "jscpp" });
+    const record = await getEngineRecord("cpp").catch(() => undefined);
+    if (record?.installed) {
+      await setEngineRecord({ ...record, installed: false, installedAt: null });
+    }
+    const state = await readState().catch(() => null);
+    if (state) {
+      await writeState({ ...state, cppClangInstalled: false, cppEngine: "jscpp" });
+    }
+  } catch {
+    // Never let registry repair block execution.
+  }
 }
 
 async function verifyCppToolchainImpl(): Promise<{ installed: boolean }> {

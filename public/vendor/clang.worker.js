@@ -16,9 +16,9 @@ self.importScripts(TOOLCHAIN + "shared.js", TOOLCHAIN + "runner.js");
 
 let runner = null;
 
-function getRunner() {
+async function getRunner() {
   if (runner) return runner;
-  const shimPromise = fetch(TOOLCHAIN + "libgcc-shim.o").then((res) =>
+  const shim = await fetch(TOOLCHAIN + "libgcc-shim.o").then((res) =>
     res.ok ? res.arrayBuffer() : null
   );
   runner = new self.CodoraCppRunner({
@@ -30,7 +30,7 @@ function getRunner() {
       const res = await fetch(TOOLCHAIN + name);
       return WebAssembly.compile(await res.arrayBuffer());
     },
-    shimBytes: await shimPromise,
+    shimBytes: shim,
   });
   return runner;
 }
@@ -51,7 +51,8 @@ self.onmessage = async (event) => {
   try {
     self.postMessage({ id, err: 0, type: "loading", msg: "Compiling with Clang WASM (offline)…" });
 
-    const result = await getRunner().compile(code, input);
+    const codeRunner = await getRunner();
+    const result = await codeRunner.compile(code, input);
 
     if (!result.ok) {
       const diag =

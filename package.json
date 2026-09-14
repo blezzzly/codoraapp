@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "verify:offline": "node scripts/verify-offline-manager.mjs && node scripts/verify-cpp-offline.mjs && node scripts/verify-python-offline.mjs",
+    "verify:offline": "node scripts/verify-offline-manager.mjs && node scripts/verify-cpp-offline.mjs && node scripts/verify-python-offline.mjs && node scripts/verify-worker-bridge.mjs",
     "desktop": "npm run build && node scripts/prepare-desktop-runtime.mjs && electron .",
     "desktop:start": "node scripts/prepare-desktop-runtime.mjs && electron .",
     "desktop:prepare": "node scripts/prepare-desktop-runtime.mjs",
