@@ -348,11 +348,11 @@ export default function CodeEditor({
         show({
           title: d.ok
             ? "C++ compiler ready — running your code"
-            : "Offline C++ compiler not ready yet",
+            : "C++ is running in light mode for now",
           description: d.ok
             ? "From now on every C++ program compiles with the real Clang compiler."
-            : d.error ?? "Check your connection and press Run again.",
-          variant: d.ok ? "success" : "destructive",
+            : "The full offline compiler couldn't download in the background. Your code still runs today — you can install it anytime from Settings.",
+          variant: d.ok ? "success" : "default",
         });
       }
     };
@@ -928,18 +928,6 @@ export default function CodeEditor({
 
       {activePane === "console" && (
         <>
-      {/* Console */}
-      <div className="bg-[#261e33]">
-        <div className="flex items-center justify-between gap-3 px-3 pt-2.5">
-          <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary/70">
-            <Icon name="Terminal" size={12} /> Console
-            {running && (
-              <span className="animate-pulse normal-case tracking-normal text-amber-300/90">
-                running…
-              </span>
-            )}
-          </span>
-        </div>
         <div className="p-3">
           <div className="rounded-xl border border-white/10 bg-[#0d0a13] p-3">
           {runResult?.waitingForInput && (
@@ -1110,8 +1098,7 @@ export default function CodeEditor({
             </p>
           )}
         </div>
-        </div>
-        </div>
+      </div>
         </>
       )}
       {javaConsentPending && (
