@@ -317,6 +317,7 @@ export default function CodeEditor({
   const [focused, setFocused] = useState(false);
   const [javaConsentPending, setJavaConsentPending] = useState(false);
   const [javaConsentAction, setJavaConsentAction] = useState<"run" | "check">("run");
+  const [activePane, setActivePane] = useState<"compiler" | "console">("compiler");
   const installingCppRef = useRef(false);
 
   // Surface the automatic C++ compiler download (first online C++ run).
@@ -355,8 +356,16 @@ export default function CodeEditor({
   const desktop = isDesktopApp();
 
   useEffect(() => {
-    if (autoFocusInput) inputRef.current?.focus();
-  }, [autoFocusInput]);
+    if (autoFocusInput && activePane === "console") inputRef.current?.focus();
+  }, [autoFocusInput, activePane]);
+
+  // When a program is left waiting for input, focus the terminal prompt the
+  // moment the user lands on the console pane.
+  useEffect(() => {
+    if (activePane === "console" && runResult?.waitingForInput) {
+      inputRef.current?.focus();
+    }
+  }, [activePane, runResult?.waitingForInput]);
 
   const [prevLanguage, setPrevLanguage] = useState(language);
   if (prevLanguage !== language) {
@@ -384,6 +393,7 @@ export default function CodeEditor({
       setRunning(true);
       setRunResult(null);
       setAutoFocusInput(false);
+      setActivePane("console");
       try {
         const local = await runLocally(code, language, input);
         setRunResult(localRunOutcome(local, language));
@@ -427,6 +437,7 @@ export default function CodeEditor({
     setRunning(true);
     setRunResult(null);
     setAutoFocusInput(false);
+    setActivePane("console");
     try {
       // Local-first: whenever code can run on this device, it does — even
       // while online. The remote judge is only a fallback or the
@@ -495,6 +506,7 @@ export default function CodeEditor({
       }
       setChecking(true);
       setCheckResult(null);
+      setActivePane("console");
       try {
         const result = await checkLocalCode(code, language, testCases);
         setCheckResult(result);
@@ -526,6 +538,7 @@ export default function CodeEditor({
     }
     setChecking(true);
     setCheckResult(null);
+    setActivePane("console");
     try {
       // Local-first, same as Run: offline-capable languages are usually checked
       // on-device; the online judge is only a fallback (e.g. when the
@@ -589,6 +602,41 @@ export default function CodeEditor({
         focused && "editor-typing-glow"
       )}
     >
+      {/* Pane tabs */}
+      <div className="flex items-center gap-1 border-b border-white/10 bg-[#35294a] px-3 pt-1.5">
+        <button
+          type="button"
+          onClick={() => setActivePane("compiler")}
+          className={cn(
+            "flex h-9 items-center gap-1.5 border-b-2 px-3 text-xs font-bold transition-colors",
+            activePane === "compiler"
+              ? "border-primary text-primary"
+              : "border-transparent text-primary/60 hover:text-primary/90"
+          )}
+        >
+          <Icon name="FileCode" size={13} /> Compiler
+        </button>
+        <button
+          type="button"
+          onClick={() => setActivePane("console")}
+          className={cn(
+            "flex h-9 items-center gap-1.5 border-b-2 px-3 text-xs font-bold transition-colors",
+            activePane === "console"
+              ? "border-primary text-primary"
+              : "border-transparent text-primary/60 hover:text-primary/90"
+          )}
+        >
+          <Icon name="Terminal" size={13} /> Console
+          {running && (
+            <span className="ml-0.5 animate-pulse text-[10px] font-bold normal-case text-amber-300/90">
+              running…
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activePane === "compiler" && (
+        <>
       {/* Editor header */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#35294a] px-4 py-2.5">
         <div className="flex items-center gap-2">
@@ -598,6 +646,21 @@ export default function CodeEditor({
           </span>
         </div>
         <div className="flex items-center gap-1.5">
+          {testCases && testCases.length > 0 && (
+            <Button
+              onClick={handleCheck}
+              disabled={checking || running}
+              variant="outline"
+              className="h-9 px-3 text-xs"
+            >
+              <Icon
+                name={checking ? "RotateCw" : "CheckCircle"}
+                size={14}
+                className={checking ? "animate-spin" : ""}
+              />
+              {checking ? "Checking..." : "Check"}
+            </Button>
+          )}
           <button
             onClick={copy}
             className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-bold text-primary/90 transition-colors hover:bg-white/10"
@@ -611,6 +674,21 @@ export default function CodeEditor({
           >
             <Icon name="RotateCcw" size={13} />
             Reset
+          </button>
+          <button
+            onClick={handleRun}
+            disabled={running}
+            aria-label="Run code"
+            className={cn(
+              "ml-1 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-foreground shadow-lg shadow-black/25 transition-all active:scale-95",
+              running && "opacity-80"
+            )}
+          >
+            <Icon
+              name={running ? "RotateCw" : "Play"}
+              size={17}
+              className={running ? "animate-spin" : "ml-0.5"}
+            />
           </button>
         </div>
       </div>
@@ -651,8 +729,13 @@ export default function CodeEditor({
         }}
       />
 
+      </>
+      )}
+
+      {activePane === "console" && (
+        <>
       {/* Console */}
-      <div className="border-t border-white/10 bg-[#261e33]">
+      <div className="bg-[#261e33]">
         <div className="flex items-center justify-between gap-3 px-3 pt-2.5">
           <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-primary/70">
             <Icon name="Terminal" size={12} /> Console
@@ -662,35 +745,10 @@ export default function CodeEditor({
               </span>
             )}
           </span>
-          <div className="flex items-center gap-2">
-            {testCases && testCases.length > 0 && (
-              <Button
-                onClick={handleCheck}
-                disabled={checking || running}
-                variant="outline"
-                className="h-8 px-3 text-xs"
-              >
-                <Icon
-                  name={checking ? "RotateCw" : "CheckCircle"}
-                  size={14}
-                  className={checking ? "animate-spin" : ""}
-                />
-                {checking ? "Checking..." : "Check"}
-              </Button>
-            )}
-            <Button onClick={handleRun} disabled={running} className="h-8 px-3 text-xs">
-              <Icon
-                name={running ? "RotateCw" : "Play"}
-                size={14}
-                className={running ? "animate-spin" : ""}
-              />
-              {running ? "Running..." : "Run"}
-            </Button>
-          </div>
         </div>
         <RuntimeStatusChips />
         <div className="p-3">
-          <div className="rounded-xl border border-white/10 bg-[#1d1628] p-3">
+          <div className="rounded-xl border border-white/10 bg-[#0d0a13] p-3">
           {runResult?.waitingForInput && (
             <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-amber-300">
               <Icon name="Keyboard" size={13} />
@@ -768,7 +826,7 @@ export default function CodeEditor({
           {runResult && (
             <pre
               className={cn(
-                "max-h-60 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-[#261e33] p-3 font-mono text-[12.5px] leading-relaxed",
+                "max-h-60 overflow-auto whitespace-pre-wrap rounded border border-transparent p-3 font-mono text-[12.5px] leading-relaxed",
                 runResult.isError ? "text-rose-300" : "text-[#fce4ec]"
               )}
             >
@@ -835,12 +893,7 @@ export default function CodeEditor({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               aria-label="Program input (stdin)"
-              placeholder={
-                runResult?.waitingForInput
-                  ? "Type your program's input here, then press Enter"
-                  : "Type program input here, e.g. 5 3"
-              }
-              className="w-full bg-transparent text-[13px] text-[#fce4ec] outline-none placeholder:text-white/30 caret-primary"
+              className="w-full bg-transparent text-[13px] text-[#fce4ec] outline-none caret-primary"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleRun();
               }}
@@ -871,6 +924,8 @@ export default function CodeEditor({
         </div>
         </div>
         </div>
+        </>
+      )}
       {javaConsentPending && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#241a33] p-5 shadow-2xl">
