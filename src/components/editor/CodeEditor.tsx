@@ -1031,7 +1031,7 @@ export default function CodeEditor({
             </div>
           )}
 
-          {runResult && (
+          {runResult && !runResult.isError && (
             <pre
               className={cn(
                 "max-h-60 overflow-auto whitespace-pre-wrap rounded border border-transparent p-3 font-mono text-[12.5px] leading-relaxed",
@@ -1049,6 +1049,15 @@ export default function CodeEditor({
               <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-rose-500/20 bg-rose-950/40 p-3 font-mono text-[12px] leading-relaxed text-rose-300">
                 {checkResult?.compileError || runResult?.errorDetail || runResult?.output}
               </pre>
+              {runResult?.isError &&
+                !online &&
+                isEngineLimitation(runResult.output || runResult.errorDetail || "") && (
+                  <p className="rounded-xl border border-amber-500/20 bg-amber-950/30 p-3 text-[12px] leading-relaxed text-amber-200">
+                    You&apos;re offline. Connect to the internet once and press{" "}
+                    <span className="font-bold">Run</span> — Codora will download the full Clang
+                    compiler (≈60 MB, one-time), and from then on it works offline too.
+                  </p>
+                )}
               {runResult?.isError && runResult.output && runResult.output !== runResult.errorDetail && (
                 <details className="rounded-xl border border-white/10 bg-black/20 p-2 text-[11px]">
                   <summary className="cursor-pointer select-none font-sans font-semibold text-primary/70">
