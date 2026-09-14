@@ -157,6 +157,20 @@ async function runRemoteCode(
   }
 }
 
+/**
+ * True when the current source actually reads from stdin (cin, input(),
+ * Scanner…). The `$` prompt only matters then, so it stays hidden otherwise.
+ */
+function codeNeedsInput(code: string, language: LanguageId): boolean {
+  const re =
+    language === "python"
+      ? /\binput\s*\(/
+      : language === "java"
+        ? /\bScanner\b|\.next\w*\s*\(|\breadLine\s*\(/
+        : /\bcin\s*>>|std::cin|\bgetline\s*\(/;
+  return re.test(code);
+}
+
 function localRunOutcome(res: OfflineExecResult, language: LanguageId): RunResult {
   const engineLabel = res.success
     ? res.engine === "pyodide"
@@ -363,6 +377,7 @@ export default function CodeEditor({
   const inputRef = useRef<HTMLInputElement>(null);
   const config = getLanguageConfig(language);
   const desktop = isDesktopApp();
+  const needsInput = codeNeedsInput(code, language);
 
   useEffect(() => {
     if (autoFocusInput && activePane === "console") inputRef.current?.focus();
@@ -1055,6 +1070,7 @@ export default function CodeEditor({
           )}
 
           {(runResult || checkResult) && <div className="mt-3 border-t border-white/10" />}
+          {(runResult?.waitingForInput || needsInput) && (
           <div className={cn("flex items-center gap-2 font-mono text-[13px]", (runResult || checkResult) && "mt-2")}>
             <span
               className={cn(
@@ -1075,6 +1091,7 @@ export default function CodeEditor({
               }}
             />
           </div>
+          )}
           {!(runResult || checkResult) && (
             <p className="mt-2 text-[11px] leading-relaxed text-primary/50">
               {desktop ? (
@@ -1085,8 +1102,9 @@ export default function CodeEditor({
               ) : online ? (
                 <>
                   Press <span className="font-bold text-primary/80">Run</span> to execute your code —
-                  output appears here, and if your program needs input (cin, input(), Scanner…), type
-                  it at the $ prompt.
+                  output appears here.
+                  {needsInput &&
+                    " If your program reads input (cin, input(), Scanner…), type it at the $ prompt, then press Enter."}
                 </>
               ) : (
                 <>
