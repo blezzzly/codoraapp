@@ -193,12 +193,17 @@ export function wordAtCaret(value: string, caret: number): WordAtCaret {
 
 export function getCompletions(
   language: LanguageId,
-  prefix: string
+  prefix: string,
+  code?: string
 ): CompletionItem[] {
   if (!prefix) return [];
   // Allow `#inc` to complete to `#include` in C++.
   const p = prefix.toLowerCase().replace(/^#/, "");
   const items: CompletionItem[] = [];
+  const usesUsingNamespaceStd =
+    language === "cpp" &&
+    typeof code === "string" &&
+    /\busing namespace std;/.test(code);
 
   const keywordList =
     language === "python" ? PY_KEYWORDS : language === "java" ? JAVA_KEYWORDS : CPP_KEYWORDS;
@@ -206,10 +211,21 @@ export function getCompletions(
   for (const s of SNIPPETS[language]) {
     if (s.trigger.toLowerCase().startsWith(p)) {
       snippetLabels.add(s.label);
+      let insert = s.insert;
+      let detail = s.detail;
+      if (language === "cpp" && s.trigger === "cout") {
+        insert = usesUsingNamespaceStd
+          ? "cout <<  << endl;"
+          : "std::cout <<  << std::endl;";
+        detail = insert;
+      } else if (language === "cpp" && s.trigger === "cin") {
+        insert = usesUsingNamespaceStd ? "cin >> ;" : "std::cin >> ;";
+        detail = insert;
+      }
       items.push({
         label: s.label,
-        insert: s.insert,
-        detail: s.detail,
+        insert,
+        detail,
         kind: "snippet",
       });
     }

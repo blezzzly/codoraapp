@@ -393,7 +393,7 @@ export default function CodeEditor({
         closeSuggestions();
         return;
       }
-      const items = getCompletions(language, word.word);
+      const items = getCompletions(language, word.word, value);
       if (items.length === 0) {
         closeSuggestions();
         return;
