@@ -1,4 +1,4 @@
-const CACHE_NAME = "codora-workspace-v10";
+const CACHE_NAME = "codora-workspace-v11";
 
 // Separate cache for the large on-demand runtime (Clang toolchain ~60MB).
 // Downloaded once by the runtime manager with progress, then served offline.

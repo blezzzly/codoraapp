@@ -417,9 +417,14 @@ export async function getCppEngine(): Promise<"clang" | "jscpp"> {
   // The cache is the real source of truth: a pref/record that says "clang"
   // means nothing if the toolchain files aren't actually stored (evicted,
   // partial install, storage cleared, stale pref). Trust it only after the
-  // files are verified present.
+  // files are verified present -- and only if they belong to the current app
+  // version. A stale toolchain (older deploy) can produce silent failures, so
+  // it is downgraded and re-fetched by the just-in-time installer.
   const verify = await verifyCppToolchainImpl();
-  const cacheReady = verify.installed;
+  const record = await getEngineRecord("cpp").catch(() => null);
+  const staleToolchain =
+    !!record && record.manifestVersion < OFFLINE_MANIFEST_VERSION;
+  const cacheReady = verify.installed && !staleToolchain;
 
   if (regPrefs.cppEngine === "clang") {
     if (cacheReady) return "clang";

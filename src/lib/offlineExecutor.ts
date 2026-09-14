@@ -310,9 +310,10 @@ export async function runOffline(
       }
 
       // A run that "succeeds" while streaming nothing is almost always a stale,
-      // recycled worker (shared interpreter state from an earlier run). Recycle
-      // the worker and retry once before surfacing silence -- the user's code
-      // could be perfectly correct but reported as empty output.
+      // recycled worker (shared interpreter state from an earlier run) or a
+      // broken toolchain in this browser. Recycle the worker and give the OTHER
+      // engine a chance before surfacing silence -- the user's code could be
+      // perfectly correct but reported as empty output.
       if (
         language === "cpp" &&
         attempts === 0 &&
@@ -324,6 +325,12 @@ export async function runOffline(
           worker.terminate();
         } catch {
           /* ignore */
+        }
+        if (engine === "clang-wasm") {
+          // Treat the real compiler's silence the same as a start failure:
+          // fall back to the interpreter for the retry.
+          cppEngineCache = "jscpp";
+          url = cppWorkerUrl();
         }
         attempts++;
         continue;

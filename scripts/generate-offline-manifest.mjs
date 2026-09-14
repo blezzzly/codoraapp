@@ -76,7 +76,7 @@ function assetInfo(url) {
 }
 
 const manifest = {
-  version: 2,
+  version: 3,
   generatedAt: new Date().toISOString(),
   engines: Object.fromEntries(
     Object.entries(ENGINES).map(([id, def]) => {
