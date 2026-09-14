@@ -171,6 +171,18 @@ function codeNeedsInput(code: string, language: LanguageId): boolean {
   return re.test(code);
 }
 
+/**
+ * True when the failure is an engine limitation (the light interpreter can't
+ * load a real standard library, the offline compiler couldn't start) rather
+ * than a mistake in the code. Those get a clear friendly message -- never the
+ * generic "your code has an error" block.
+ */
+function isEngineLimitation(message: string): boolean {
+  return /light mode|needs the full C\+\+ compiler|cannot find library|\bcould not start\b/i.test(
+    message
+  );
+}
+
 function localRunOutcome(res: OfflineExecResult, language: LanguageId): RunResult {
   const engineLabel = res.success
     ? res.engine === "pyodide"
@@ -206,7 +218,7 @@ function localRunOutcome(res: OfflineExecResult, language: LanguageId): RunResul
     waitingForInput: false,
     isError: true,
     errorDetail: friendlyError(language, message),
-    explanation: explainCompileError(message),
+    explanation: isEngineLimitation(message) ? undefined : explainCompileError(message),
     localRun: true,
     engineLabel,
   };

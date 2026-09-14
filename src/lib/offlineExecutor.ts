@@ -309,6 +309,31 @@ export async function runOffline(
         return { output: result.output, success: true, engine: "jscpp" };
       }
 
+      // The light interpreter cannot parse real standard-library headers
+      // (string, vector, algorithm, map, sort…). When we're online and the
+      // toolchain is missing, download it right now and re-run with the real
+      // Clang compiler -- otherwise a perfectly valid program looks like a
+      // "syntax error".
+      if (
+        engine === "jscpp" &&
+        language === "cpp" &&
+        attempts === 0 &&
+        !result.success &&
+        /cannot find library|file not found|no such file/i.test(
+          result.error ?? ""
+        ) &&
+        canAutoInstallCpp()
+      ) {
+        autoInstallAttempted = true;
+        const install = await autoInstallCppToolchain();
+        if (install.ok) {
+          cppEngineCache = "clang";
+          url = cppWorkerUrl();
+          attempts++;
+          continue;
+        }
+      }
+
       // A run that "succeeds" while streaming nothing is almost always a stale,
       // recycled worker (shared interpreter state from an earlier run) or a
       // broken toolchain in this browser. Recycle the worker and give the OTHER
