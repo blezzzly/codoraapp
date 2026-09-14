@@ -21,6 +21,12 @@ import { canRunLocally, runLocally } from "@/lib/localRunner";
 import { friendlyError } from "@/lib/beginnerErrors";
 import { javaOfflineNote, currentBackend } from "@/lib/executionBackend";
 import { installProgressEventName } from "@/lib/runtimeManager";
+import {
+  wordAtCaret,
+  getCompletions,
+  formatCode,
+  type CompletionItem,
+} from "@/lib/codeSmart";
 import type { TestCase } from "@/types";
 
 const JAVA_CLOUD_CONSENT_KEY = "codora-java-cloud-consent";
@@ -318,6 +324,10 @@ export default function CodeEditor({
   const [javaConsentPending, setJavaConsentPending] = useState(false);
   const [javaConsentAction, setJavaConsentAction] = useState<"run" | "check">("run");
   const [activePane, setActivePane] = useState<"compiler" | "console">("compiler");
+  const [suggestions, setSuggestions] = useState<CompletionItem[]>([]);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const [suggestionPos, setSuggestionPos] = useState<{ top: number; left: number } | null>(null);
+  const suggestionWordRef = useRef<{ word: string; start: number } | null>(null);
   const installingCppRef = useRef(false);
 
   // Surface the automatic C++ compiler download (first online C++ run).
@@ -367,11 +377,125 @@ export default function CodeEditor({
     }
   }, [activePane, runResult?.waitingForInput]);
 
+  // ---- Code suggestions (auto code while typing) ----
+  const editorWrapRef = useRef<HTMLDivElement>(null);
+
+  const closeSuggestions = useCallback(() => {
+    setSuggestions([]);
+    setSuggestionIndex(0);
+    setSuggestionPos(null);
+  }, []);
+
+  const updateSuggestions = useCallback(
+    (value: string, caret: number) => {
+      const word = wordAtCaret(value, caret);
+      if (!word.word) {
+        closeSuggestions();
+        return;
+      }
+      const items = getCompletions(language, word.word);
+      if (items.length === 0) {
+        closeSuggestions();
+        return;
+      }
+      const wrap = editorWrapRef.current;
+      const wrapW = wrap?.clientWidth ?? 320;
+      const wrapH = wrap?.clientHeight ?? 300;
+      const beforeCaret = value.slice(0, caret);
+      const lineIdx = beforeCaret.split("\n").length - 1;
+      const lastNl = beforeCaret.lastIndexOf("\n");
+      const col = caret - lastNl - 1;
+      const LINE_H = 22;
+      const CHAR_W = 8.2;
+      const PAD = 16;
+      const top = Math.min(lineIdx * LINE_H + PAD + 2, Math.max(8, wrapH - 180));
+      const left = Math.min(col * CHAR_W + PAD, Math.max(8, wrapW - 264));
+      suggestionWordRef.current = word;
+      setSuggestions(items);
+      setSuggestionIndex(0);
+      setSuggestionPos({ top, left });
+    },
+    [language, closeSuggestions]
+  );
+
+  const acceptSuggestion = useCallback(
+    (index?: number) => {
+      const word = suggestionWordRef.current;
+      const el = textareaRef.current;
+      const idx = index ?? suggestionIndex;
+      if (!word || !el || suggestions.length === 0 || idx >= suggestions.length) {
+        closeSuggestions();
+        return;
+      }
+      const item = suggestions[idx];
+      const caret = el.selectionStart;
+      const from = Math.min(word.start, caret);
+      const next = code.slice(0, from) + item.insert + code.slice(caret);
+      onCodeChange(next);
+      closeSuggestions();
+      window.requestAnimationFrame(() => {
+        const el2 = textareaRef.current;
+        if (!el2) return;
+        const pos = from + item.insert.length;
+        el2.focus();
+        el2.selectionStart = el2.selectionEnd = pos;
+      });
+    },
+    [code, suggestions, suggestionIndex, onCodeChange, closeSuggestions]
+  );
+
+  const handleCodeChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      onCodeChange(e.target.value);
+      updateSuggestions(e.target.value, e.target.selectionStart);
+    },
+    [onCodeChange, updateSuggestions]
+  );
+
+  const formatOnShiftEnter = useCallback(
+    (el: HTMLTextAreaElement) => {
+      closeSuggestions();
+      const caret = el.selectionStart;
+      const originalLineIdx = code.slice(0, caret).split("\n").length - 1;
+      const withNewline = code.slice(0, caret) + "\n" + code.slice(caret);
+      const formatted = formatCode(language, withNewline);
+      onCodeChange(formatted);
+      const lines = formatted.split("\n");
+      const target = Math.min(originalLineIdx + 1, Math.max(0, lines.length - 1));
+      let newCaret = 0;
+      for (let i = 0; i < target; i++) newCaret += lines[i].length + 1;
+      newCaret += lines[target].length;
+      window.requestAnimationFrame(() => {
+        const el2 = textareaRef.current;
+        if (!el2) return;
+        el2.focus();
+        el2.selectionStart = el2.selectionEnd = newCaret;
+      });
+    },
+    [code, language, onCodeChange]
+  );
+
+  // Auto-grow the editor so the whole code is visible without inner scrolling.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const minPx = parseFloat(getComputedStyle(el).minHeight) || 0;
+    el.style.height = "auto";
+    const target = Math.max(minPx, el.scrollHeight);
+    const raf = window.requestAnimationFrame(() => {
+      const el2 = textareaRef.current;
+      if (!el2) return;
+      el2.style.height = `${target}px`;
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [code, language, activePane]);
+
   const [prevLanguage, setPrevLanguage] = useState(language);
   if (prevLanguage !== language) {
     setPrevLanguage(language);
     setRunResult(null);
     setCheckResult(null);
+    closeSuggestions();
   }
 
   const handleRun = useCallback(async () => {
@@ -694,10 +818,11 @@ export default function CodeEditor({
       </div>
 
       {/* Editor */}
+      <div ref={editorWrapRef} className="relative">
       <textarea
         ref={textareaRef}
         value={code}
-        onChange={(e) => onCodeChange(e.target.value)}
+        onChange={handleCodeChange}
         spellCheck={false}
         autoCapitalize="off"
         autoComplete="off"
@@ -706,14 +831,44 @@ export default function CodeEditor({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         className={cn(
-          "w-full resize-y bg-transparent p-4 font-mono text-[13.5px] leading-relaxed text-[#fce4ec] outline-none caret-primary placeholder:text-white/30 selection:bg-primary/30",
+          "w-full resize-none overflow-hidden bg-transparent p-4 font-mono text-[13.5px] leading-relaxed text-[#fce4ec] outline-none caret-primary transition-[height] duration-150 ease-out placeholder:text-white/30 selection:bg-primary/30",
           minHeightClass
         )}
         placeholder={`// ${LANGUAGES[language].label} code goes here`}
         onKeyDown={(e) => {
+          if (e.key === "Enter" && e.shiftKey) {
+            e.preventDefault();
+            formatOnShiftEnter(e.currentTarget);
+            return;
+          }
+          if (suggestions.length > 0) {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setSuggestionIndex((i) => (i + 1) % suggestions.length);
+              return;
+            }
+            if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setSuggestionIndex(
+                (i) => (i - 1 + suggestions.length) % suggestions.length
+              );
+              return;
+            }
+            if (e.key === "Enter" || e.key === "Tab") {
+              e.preventDefault();
+              acceptSuggestion();
+              return;
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              closeSuggestions();
+              return;
+            }
+          }
           if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
             e.preventDefault();
             handleRun();
+            return;
           }
           if (e.key === "Tab") {
             e.preventDefault();
@@ -728,6 +883,46 @@ export default function CodeEditor({
           }
         }}
       />
+
+      {suggestionPos && suggestions.length > 0 && (
+        <div
+          className="absolute z-20 w-64 max-w-[80vw] overflow-hidden rounded-xl border border-border bg-[#241a33] shadow-2xl shadow-black/50"
+          style={{
+            top: suggestionPos.top,
+            left: suggestionPos.left,
+            animation: "fadeInUp 0.15s ease-out",
+          }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {suggestions.map((s, i) => (
+            <button
+              key={`${s.label}-${i}`}
+              type="button"
+              onMouseEnter={() => setSuggestionIndex(i)}
+              onClick={() => acceptSuggestion(i)}
+              className={cn(
+                "flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors",
+                i === suggestionIndex
+                  ? "bg-primary/25 text-primary"
+                  : "text-white/80 hover:bg-white/5"
+              )}
+            >
+              <Icon
+                name={s.kind === "keyword" ? "Hash" : "Zap"}
+                size={12}
+                className={s.kind === "keyword" ? "text-primary/60" : "text-amber-300/80"}
+              />
+              <span className="truncate font-mono font-semibold">{s.label}</span>
+              {s.kind === "snippet" && s.detail && (
+                <span className="ml-auto truncate text-[10px] text-white/40">
+                  {s.detail}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+      </div>
 
       </>
       )}
