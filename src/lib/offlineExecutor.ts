@@ -189,15 +189,25 @@ function runInWorker(
         return;
       }
       if (msg.id !== id) return;
+      // Trust the bytes we actually streamed. Some engines (JSCPP) answer the
+      // final message with a status code (`{ err: 0, data: 0 }`) instead of the
+      // program's output, so an empty/absent `output` field must never erase a
+      // real stdout stream.
+      const finalOutput =
+        output.trim() !== ""
+          ? output
+          : typeof msg.output === "string"
+            ? msg.output
+            : output;
       if (msg.err === 0) {
         finish({
-          output: msg.output ?? output,
+          output: finalOutput,
           success: true,
           engine: "local",
         });
       } else if (msg.err != null) {
         finish({
-          output: msg.output ?? output,
+          output: finalOutput,
           success: false,
           error: String(msg.msg ?? "Unknown execution error"),
           engine: "local",
@@ -298,6 +308,27 @@ export async function runOffline(
       ) {
         return { output: result.output, success: true, engine: "jscpp" };
       }
+
+      // A run that "succeeds" while streaming nothing is almost always a stale,
+      // recycled worker (shared interpreter state from an earlier run). Recycle
+      // the worker and retry once before surfacing silence -- the user's code
+      // could be perfectly correct but reported as empty output.
+      if (
+        language === "cpp" &&
+        attempts === 0 &&
+        result.success &&
+        result.output.trim() === ""
+      ) {
+        workers.delete(url);
+        try {
+          worker.terminate();
+        } catch {
+          /* ignore */
+        }
+        attempts++;
+        continue;
+      }
+
       return { ...result, engine };
     } catch (err) {
       if (
