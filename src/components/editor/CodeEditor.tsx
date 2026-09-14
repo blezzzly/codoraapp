@@ -597,9 +597,18 @@ export default function CodeEditor({
         bestLocal = await runLocally(code, language, input);
         // Use the on-device result unless the engine itself could not start
         // (not a code error) and the online judge is available as a fallback.
+        // Also fall back to the remote judge if the local engine hit a
+        // structural limitation (missing standard libraries, etc.) — in that
+        // case the code is likely correct and just needs the real compiler.
+        const isEngineLimitationFailure =
+          bestLocal.engine === "jscpp" &&
+          !bestLocal.success &&
+          /cannot find library|file not found|no such file/i.test(
+            bestLocal.error ?? ""
+          );
         if (
           bestLocal.engine !== "unsupported" &&
-          !(online && bestLocal.startupFailure)
+          !(online && (bestLocal.startupFailure || isEngineLimitationFailure))
         ) {
           setRunResult(localRunOutcome(bestLocal, language));
           return;
@@ -1050,12 +1059,21 @@ export default function CodeEditor({
                 {checkResult?.compileError || runResult?.errorDetail || runResult?.output}
               </pre>
               {runResult?.isError &&
-                !online &&
                 isEngineLimitation(runResult.output || runResult.errorDetail || "") && (
                   <p className="rounded-xl border border-amber-500/20 bg-amber-950/30 p-3 text-[12px] leading-relaxed text-amber-200">
-                    You&apos;re offline. Connect to the internet once and press{" "}
-                    <span className="font-bold">Run</span> — Codora will download the full Clang
-                    compiler (≈60 MB, one-time), and from then on it works offline too.
+                    {!online ? (
+                      <>
+                        You&apos;re offline. Connect to the internet once and press{" "}
+                        <span className="font-bold">Run</span> — Codora will download the full
+                        Clang compiler (≈60 MB, one-time), and from then on it works offline too.
+                      </>
+                    ) : (
+                      <>
+                        The full compiler download couldn&apos;t finish. Check your connection and
+                        press <span className="font-bold">Run</span> again — it downloads Clang
+                        once, then string, vector, map… all work.
+                      </>
+                    )}
                   </p>
                 )}
               {runResult?.isError && runResult.output && runResult.output !== runResult.errorDetail && (
